@@ -7,25 +7,9 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Home,
-  Search,
-  Video,
-  FileText,
-  Library,
-  Star,
-  Download,
-  Target,
-  History,
-  ClipboardCheck,
   Shield,
-  PlusCircle,
-  BarChart2,
-  Settings,
-  Moon,
-  Sun,
   Bell,
-  HelpCircle,
   LogOut,
-  ChevronDown,
   LoaderCircle,
 } from "lucide-react";
 import { useUser, useAuth, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
@@ -65,33 +49,16 @@ import type { User as AppUser } from '@/lib/types';
 
 const menuItems = [
   { icon: Home, label: "होम", href: "/home" },
-  { icon: Search, label: "सर्च स्टडी मटेरियल", href: "#" },
-  { icon: Video, label: "वीडियो क्लासेस", href: "#" },
-  { icon: FileText, label: "पीडीएफ नोट्स", href: "#" },
-  { icon: Library, label: "सभी विषय", href: "#" },
-  { icon: Star, label: "सेव किए गए नोट्स", href: "#" },
-  { icon: Download, label: "मेरे डाउनलोड", href: "#" },
-  { icon: Target, label: "डेली स्टडी टारगेट", href: "#" },
-  { icon: History, label: "पिछले वर्षों के प्रश्नपत्र", href: "#" },
-  { icon: ClipboardCheck, label: "मॉक टेस्ट / प्रैक्टिस", href: "#" },
 ];
 
 const adminItems = [
   { icon: Shield, label: "एडमिन पैनल", href: "/admin" },
-  { icon: PlusCircle, label: "नया PDF जोड़ें", href: "/admin#add-pdf" },
-  { icon: PlusCircle, label: "नया वीडियो जोड़ें", href: "#" },
-  { icon: BarChart2, label: "यूज़र एनालिटिक्स", href: "/admin#analytics" },
 ];
 
-const settingsItems = [
-  { icon: Settings, label: "सेटिंग", href: "#" },
-  { icon: Bell, label: "नोटिफिकेशन सेटिंग", href: "#" },
-  { icon: HelpCircle, label: "हेल्प और सपोर्ट", href: "#" },
-];
 
 function AppSidebar() {
   const pathname = usePathname();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const auth = useAuth();
   const router = useRouter();
   const firestore = useFirestore();
@@ -101,9 +68,10 @@ function AppSidebar() {
       return doc(firestore, 'users', user.uid);
   }, [firestore, user]);
 
-  const { data: appUser, isLoading: isAppUserLoading } = useDoc<AppUser>(userDocRef);
+  const { data: appUser } = useDoc<AppUser>(userDocRef);
 
   const handleLogout = async () => {
+    localStorage.removeItem("admin_verified");
     await auth.signOut();
     router.push('/login');
   };
@@ -167,24 +135,6 @@ function AppSidebar() {
           </>
         )}
         
-        <div className="px-4 my-2">
-            <p className="text-xs font-semibold text-white/50 tracking-wider uppercase">सेटिंग्स</p>
-        </div>
-        <SidebarMenu>
-          {settingsItems.map((item) => (
-            <SidebarMenuItem key={item.label}>
-              <Link href={item.href} className="w-full">
-                <SidebarMenuButton className="text-sidebar-foreground hover:bg-white/10 hover:text-white">
-                  <item.icon className="w-5 h-5" />
-                  <span>{item.label}</span>
-                </SidebarMenuButton>
-              </Link>
-            </SidebarMenuItem>
-          ))}
-           <SidebarMenuItem>
-              <ThemeToggle />
-            </SidebarMenuItem>
-        </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="p-4 border-t border-white/10 mt-auto">
          <SidebarMenu>
@@ -204,26 +154,6 @@ function AppSidebar() {
   );
 }
 
-function ThemeToggle() {
-    const [isDark, setIsDark] = React.useState(false);
-    
-    React.useEffect(() => {
-        const isCurrentlyDark = document.documentElement.classList.contains('dark');
-        setIsDark(isCurrentlyDark);
-    }, []);
-
-    const toggleTheme = () => {
-        document.documentElement.classList.toggle('dark');
-        setIsDark(!isDark);
-    }
-    
-    return (
-        <SidebarMenuButton onClick={toggleTheme} className="text-sidebar-foreground hover:bg-white/10 hover:text-white">
-            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
-        </SidebarMenuButton>
-    )
-}
 
 function TopBar() {
   const { isMobile } = useSidebar();
@@ -232,6 +162,7 @@ function TopBar() {
   const router = useRouter();
 
   const handleLogout = async () => {
+    localStorage.removeItem("admin_verified");
     await auth.signOut();
     router.push('/login');
   };
@@ -245,6 +176,9 @@ function TopBar() {
       <div className="flex-1">
         {/* Placeholder for top bar content if needed */}
       </div>
+       <Button variant="ghost" size="icon" className="text-foreground/70 hover:text-foreground">
+          <Bell />
+        </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
@@ -272,12 +206,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  // This effect handles redirection based on auth state.
   React.useEffect(() => {
-    if (!isUserLoading && !user && pathname !== '/login' && pathname !== '/') {
-        router.push('/login');
+    // If auth state is still loading, do nothing.
+    if (isUserLoading) {
+      return;
     }
+    // If auth is loaded and there is no user, redirect to login page,
+    // but only if they aren't already on the login or splash page.
+    if (!user && pathname !== '/login' && pathname !== '/') {
+        router.replace('/login');
+    }
+    // If a user is logged in and they are on the login or splash page,
+    // redirect them to the home page.
+    if (user && (pathname === '/login' || pathname === '/')) {
+      router.replace('/home');
+    }
+
   }, [isUserLoading, user, router, pathname]);
 
+  // While checking auth state, show a global loader for protected pages.
   if (isUserLoading && pathname !== '/login' && pathname !== '/') {
     return (
         <div className="flex h-screen items-center justify-center bg-background">
@@ -286,26 +234,36 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // Allow access to login and splash page without layout
+  // Allow access to login and splash page without showing the main app layout.
   if (pathname === '/login' || pathname === '/') {
     return <>{children}</>;
   }
-  
-  return (
-     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
-        <Sidebar collapsible="offcanvas" className="w-72">
-          <AppSidebar />
-        </Sidebar>
-        <div className="flex flex-col flex-1">
-            <TopBar />
-            <SidebarInset className="bg-transparent p-0 m-0 rounded-none shadow-none md:m-0 md:rounded-none md:shadow-none min-h-0">
-                {children}
-            </SidebarInset>
+
+  // If we have a user, show the main app layout.
+  // The check for `user` here prevents a flash of the layout before redirection.
+  if (user) {
+    return (
+      <SidebarProvider>
+        <div className="flex min-h-screen w-full">
+          <Sidebar collapsible="offcanvas" className="w-72">
+            <AppSidebar />
+          </Sidebar>
+          <div className="flex flex-col flex-1">
+              <TopBar />
+              <SidebarInset className="bg-transparent p-0 m-0 rounded-none shadow-none md:m-0 md:rounded-none md:shadow-none min-h-0">
+                  {children}
+              </SidebarInset>
+          </div>
         </div>
-      </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    );
+  }
+
+  // If no user and not loading, this will be briefly rendered before redirection kicks in.
+  // A loading screen here can prevent seeing an empty page.
+  return (
+    <div className="flex h-screen items-center justify-center bg-background">
+        <LoaderCircle className="w-10 h-10 animate-spin text-primary" />
+    </div>
   );
 }
-
-    

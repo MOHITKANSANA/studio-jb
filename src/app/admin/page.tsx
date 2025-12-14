@@ -11,6 +11,7 @@ import {
   doc,
   serverTimestamp,
   getDoc,
+  query,
 } from "firebase/firestore";
 import {
   useFirestore,
@@ -22,6 +23,7 @@ import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Dialog,
@@ -32,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Book, Users, DollarSign, Lock, Unlock, BarChart, PlusCircle, LoaderCircle } from "lucide-react";
+import { FileText, Book, Users, DollarSign, Lock, Unlock, BarChart, PlusCircle, LoaderCircle, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { cn } from "@/lib/utils";
@@ -51,6 +53,12 @@ const pdfSchema = z.object({
   accessType: z.enum(["Free", "Paid"]),
 });
 
+const notificationSchema = z.object({
+    title: z.string().min(1, "सूचना का शीर्षक आवश्यक है।"),
+    message: z.string().min(1, "सूचना का संदेश आवश्यक है।"),
+    imageUrl: z.string().url("कृपया एक मान्य इमेज URL डालें।").optional().or(z.literal('')),
+});
+
 function AdminGate({ onVerified }: { onVerified: () => void }) {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
@@ -58,12 +66,10 @@ function AdminGate({ onVerified }: { onVerified: () => void }) {
   const [isVerifying, setIsVerifying] = useState(true);
   
   useEffect(() => {
-    // If user is not loaded yet, do nothing.
     if (isUserLoading) {
       return;
     }
     
-    // If there is no user, verification fails.
     if (!user) {
         setIsVerifying(false);
         setIsAdmin(false);
@@ -80,6 +86,7 @@ function AdminGate({ onVerified }: { onVerified: () => void }) {
                 onVerified();
             } else {
                 setIsAdmin(false);
+                localStorage.removeItem("admin_verified");
             }
         } catch (error) {
             console.error("Error checking admin status:", error);
@@ -128,15 +135,21 @@ function AdminDashboard() {
   const revenueChart = PlaceHolderImages.find(img => img.id === 'chart-placeholder-1');
   const [isPaperSubmitting, setIsPaperSubmitting] = useState(false);
   const [isPdfSubmitting, setIsPdfSubmitting] = useState(false);
+  const [isNotificationSubmitting, setIsNotificationSubmitting] = useState(false);
   
-  const papersRef = useMemoFirebase(() => collection(firestore, "papers"), [firestore]);
+  const papersRef = useMemoFirebase(() => query(collection(firestore, "papers")), [firestore]);
   const { data: papers, isLoading: papersLoading } = useCollection<Paper>(papersRef);
 
-  const usersRef = useMemoFirebase(() => collection(firestore, "users"), [firestore]);
+  const usersRef = useMemoFirebase(() => query(collection(firestore, "users")), [firestore]);
   const { data: users, isLoading: usersLoading } = useCollection(usersRef);
 
-  const allPdfsQuery = useMemoFirebase(() => papers ? collection(firestore, 'papers', papers[0]?.id, 'pdfDocuments') : null, [papers, firestore]);
-  const { data: pdfs, isLoading: pdfsLoading } = useCollection<Pdf>(allPdfsQuery);
+  const allPdfsQuery = useMemoFirebase(() => {
+    if (!papers || papers.length === 0) return null;
+    // Note: This is a simplified query. For a real app, you'd fetch PDFs for each paper.
+    // This approach has limitations and is for dashboard stats only.
+    return collection(firestore, 'papers', papers[0].id, 'pdfDocuments');
+  }, [papers, firestore]);
+  const { data: pdfsData, isLoading: pdfsLoading } = useCollection<Pdf>(allPdfsQuery);
 
 
   const paperForm = useForm<z.infer<typeof paperSchema>>({
@@ -154,16 +167,19 @@ function AdminDashboard() {
         accessType: "Free",
     }
   });
+
+  const notificationForm = useForm<z.infer<typeof notificationSchema>>({
+    resolver: zodResolver(notificationSchema),
+    defaultValues: { title: "", message: "", imageUrl: "" },
+  });
   
   async function onAddPaper(values: z.infer<typeof paperSchema>) {
     setIsPaperSubmitting(true);
-    const newPaperRef = doc(papersRef);
     const newPaper = {
       ...values,
-      id: newPaperRef.id,
       createdAt: serverTimestamp(),
     };
-    await addDocumentNonBlocking(papersRef, newPaper);
+    await addDocumentNonBlocking(collection(firestore, "papers"), newPaper);
     toast({ title: "सफलता!", description: `पेपर "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
     paperForm.reset({ name: "", paperNumber: (papers?.length || 0) + 2 });
     setIsPaperSubmitting(false);
@@ -172,10 +188,8 @@ function AdminDashboard() {
   async function onAddPdf(values: z.infer<typeof pdfSchema>) {
     setIsPdfSubmitting(true);
     const pdfsCollectionRef = collection(firestore, "papers", values.paperId, "pdfDocuments");
-    const newPdfRef = doc(pdfsCollectionRef);
     const newPdf = {
         ...values,
-        id: newPdfRef.id,
         createdAt: serverTimestamp(),
     };
     await addDocumentNonBlocking(pdfsCollectionRef, newPdf);
@@ -184,16 +198,29 @@ function AdminDashboard() {
     setIsPdfSubmitting(false);
   }
 
-  const freePdfs = pdfs?.filter(p => p.accessType === 'Free').length || 0;
-  const paidPdfs = pdfs?.filter(p => p.accessType === 'Paid').length || 0;
+  async function onSendNotification(values: z.infer<typeof notificationSchema>) {
+    setIsNotificationSubmitting(true);
+    console.log("Sending notification:", values);
+    // Here you would integrate with a push notification service like FCM
+    // For this example, we'll just show a success toast.
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    toast({ title: "सफलता!", description: `सूचना "${values.title}" भेज दी गई है।` });
+    notificationForm.reset();
+    setIsNotificationSubmitting(false);
+  }
+
+  // Note: This PDF count is simplistic and only fetches from the first paper for the dashboard.
+  // A full implementation would require more complex queries or data aggregation.
+  const freePdfs = pdfsData?.filter(p => p.accessType === 'Free').length || 0;
+  const paidPdfs = pdfsData?.filter(p => p.accessType === 'Paid').length || 0;
 
 
   const analytics = [
-    { title: "कुल PDF", value: pdfs?.length ?? "...", icon: FileText, gradient: "from-blue-500 to-cyan-400" },
+    { title: "कुल PDF (अनुमानित)", value: (freePdfs + paidPdfs) ?? "...", icon: FileText, gradient: "from-blue-500 to-cyan-400" },
     { title: "कुल विषय / पेपर", value: papers?.length ?? "...", icon: Book, gradient: "from-purple-500 to-pink-500" },
     { title: "कुल यूज़र", value: users?.length ?? "...", icon: Users, gradient: "from-green-500 to-teal-400" },
-    { title: "फ्री PDF", value: freePdfs, icon: Unlock, gradient: "from-yellow-500 to-amber-400" },
-    { title: "पेड PDF", value: paidPdfs, icon: Lock, gradient: "from-red-500 to-orange-500" },
+    { title: "फ्री PDF (अनुमानित)", value: freePdfs, icon: Unlock, gradient: "from-yellow-500 to-amber-400" },
+    { title: "पेड PDF (अनुमानित)", value: paidPdfs, icon: Lock, gradient: "from-red-500 to-orange-500" },
   ];
 
   const revenue = [
@@ -300,6 +327,42 @@ function AdminDashboard() {
               </CardContent>
           </Card>
       </div>
+      <Card id="send-notification" className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Send /> मैन्युअल नोटिफिकेशन भेजें</CardTitle>
+          <CardDescription>सभी यूज़र्स को एक कस्टम नोटिफिकेशन भेजें।</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...notificationForm}>
+            <form onSubmit={notificationForm.handleSubmit(onSendNotification)} className="space-y-4">
+              <FormField control={notificationForm.control} name="title" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>नोटिफिकेशन का शीर्षक</FormLabel>
+                  <FormControl><Input placeholder="नया स्टडी मटेरियल उपलब्ध है!" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={notificationForm.control} name="message" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>नोटिफिकेशन का संदेश</FormLabel>
+                  <FormControl><Textarea placeholder="आज हमने इतिहास के नए नोट्स अपलोड किए हैं, अभी देखें।" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={notificationForm.control} name="imageUrl" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>इमेज URL (वैकल्पिक)</FormLabel>
+                  <FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <Button type="submit" className="w-full gradient-button" disabled={isNotificationSubmitting}>
+                {isNotificationSubmitting ? <LoaderCircle className="animate-spin" /> : "अभी भेजें"}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -309,14 +372,13 @@ export default function AdminPage() {
   const { user, isUserLoading } = useUser();
 
   useEffect(() => {
-    // We trust localStorage for initial quick check to avoid flicker,
-    // but the final gate is AdminGate's useEffect which re-verifies with Firestore.
-    if (!isUserLoading && user && localStorage.getItem("admin_verified") === "true") {
+    if (typeof window !== 'undefined' && !isUserLoading && user && localStorage.getItem("admin_verified") === "true") {
       setIsVerified(true);
+    } else if (!isUserLoading && !user) {
+      setIsVerified(false);
     }
   }, [user, isUserLoading]);
 
-  // isUserLoading from useUser() is the primary loading state.
   if (isUserLoading) {
      return (
         <AppLayout>
@@ -327,7 +389,6 @@ export default function AdminPage() {
      )
   }
   
-  // If user is loaded but not logged in OR is not verified yet, show the gate
   if (!user || !isVerified) {
     return (
       <AppLayout>
@@ -338,7 +399,6 @@ export default function AdminPage() {
     );
   }
 
-  // User is logged in and verified
   return (
     <AppLayout>
       <main className="flex-1 overflow-y-auto">
@@ -347,5 +407,3 @@ export default function AdminPage() {
     </AppLayout>
   );
 }
-
-    

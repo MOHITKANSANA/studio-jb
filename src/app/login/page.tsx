@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, User, Lock, Mail, KeyRound, BookOpenCheck, LoaderCircle } from 'lucide-react';
-import { useAuth, initiateEmailSignIn, initiateEmailSignUp, initiatePasswordReset } from '@/firebase';
+import { useAuth, initiateEmailSignIn, initiateEmailSignUp, initiatePasswordReset, useUser } from '@/firebase';
 import { setDoc, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 
@@ -18,7 +18,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 const loginSchema = z.object({
@@ -47,6 +46,23 @@ const forgotPasswordSchema = z.object({
 });
 
 export default function LoginPage() {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isUserLoading && user) {
+      router.replace('/home');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || user) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-yellow-400 via-red-500 to-orange-600">
+        <LoaderCircle className="h-12 w-12 animate-spin text-white" />
+      </div>
+    );
+  }
+  
   return (
     <main className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-yellow-400 via-red-500 to-orange-600 p-4">
       <div className="w-full max-w-md">
@@ -88,17 +104,29 @@ function AuthForm() {
 
   function handleAuthError(error: any, formType: 'login' | 'signup' | 'reset') {
     let title = 'एक त्रुटि हुई';
-    let description = error.message;
+    let description = 'कुछ गलत हो गया। कृपया दोबारा प्रयास करें।';
 
-    if (error.code === 'auth/email-already-in-use') {
+    switch (error.code) {
+      case 'auth/email-already-in-use':
         title = 'साइन-अप विफल';
         description = 'यह ईमेल पहले से पंजीकृत है। कृपया लॉगिन करें।';
-    } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-        title = 'लॉगिन विफल';
+        break;
+      case 'auth/wrong-password':
+      case 'auth/user-not-found':
+      case 'auth/invalid-credential':
+        title = formType === 'reset' ? 'रीसेट विफल' : 'लॉगिन विफल';
         description = 'अमान्य ईमेल या पासवर्ड। कृपया पुनः प्रयास करें।';
-    } else if (formType === 'reset' && error.code === 'auth/user-not-found'){
-        title = 'रीसेट विफल';
-        description = 'यह ईमेल पंजीकृत नहीं है। कृपया दोबारा जांचें।';
+        if (formType === 'reset') {
+            description = 'यह ईमेल पंजीकृत नहीं है। कृपया दोबारा जांचें।';
+        }
+        break;
+      case 'auth/too-many-requests':
+        title = 'बहुत सारे प्रयास';
+        description = 'आपने बहुत बार प्रयास किया है। कृपया कुछ देर बाद फिर से प्रयास करें।';
+        break;
+      default:
+        description = error.message;
+        break;
     }
     
     toast({
@@ -128,30 +156,34 @@ function AuthForm() {
     setIsLoading(true);
     try {
       const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
-      if (userCredential && userCredential.user) {
-        const user = userCredential.user;
-        const userRef = doc(firestore, "users", user.uid);
-        const userData = {
-          id: user.uid,
-          fullName: values.fullName,
-          email: values.email,
-          role: values.role,
-        };
-        setDocumentNonBlocking(userRef, userData, { merge: true });
+      const user = userCredential.user;
+      
+      const userRef = doc(firestore, "users", user.uid);
+      const userData = {
+        id: user.uid,
+        fullName: values.fullName,
+        email: values.email,
+        role: values.role,
+      };
+      // This is a non-blocking write.
+      setDocumentNonBlocking(userRef, userData, { merge: true });
 
-        if (values.role === 'admin') {
-          const adminRef = doc(firestore, "roles_admin", user.uid);
-          const adminData = { userId: user.uid };
-          setDocumentNonBlocking(adminRef, adminData, { merge: true });
-        }
-
-        toast({
-          title: 'अकाउंट सफलतापूर्वक बन गया!',
-          description: 'होमपेज पर रीडायरेक्ट किया जा रहा है...',
-        });
-        
-        router.push('/home');
+      if (values.role === 'admin') {
+        const adminRef = doc(firestore, "roles_admin", user.uid);
+        const adminData = { userId: user.uid, adminCode: 'Smartjsram' };
+        // This is also non-blocking
+        setDocumentNonBlocking(adminRef, adminData, { merge: true });
       }
+
+      toast({
+        title: 'अकाउंट सफलतापूर्वक बन गया!',
+        description: 'होमपेज पर रीडायरेक्ट किया जा रहा है...',
+      });
+      
+      // The onAuthStateChanged listener in the provider will handle redirection
+      // but we can push here for a faster perceived navigation.
+      router.push('/home');
+
     } catch (error: any) {
       handleAuthError(error, 'signup');
     } finally {
@@ -308,5 +340,3 @@ function AuthForm() {
     </>
   );
 }
-
-    

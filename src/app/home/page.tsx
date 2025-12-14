@@ -1,13 +1,12 @@
+
 "use client";
 
 import Link from "next/link";
-import { Bell, Lock, File as FileIcon, Search as SearchIcon } from "lucide-react";
+import { Bell, Lock, File as FileIcon, Search as SearchIcon, LoaderCircle } from "lucide-react";
 import {
   collection,
   query,
-  where,
   orderBy,
-  limit,
 } from "firebase/firestore";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { AppLayout } from "@/components/app-layout";
@@ -45,7 +44,7 @@ function PaperItem({ paper }: { paper: Paper }) {
           <h3 className="font-headline text-2xl font-bold">{paper.name}</h3>
         </AccordionTrigger>
         <AccordionContent className="p-4 bg-background">
-          {isLoading && <p className="text-center p-4">PDFs लोड हो रहे हैं...</p>}
+          {isLoading && <div className="flex justify-center p-4"><LoaderCircle className="w-6 h-6 animate-spin" /></div>}
           {!isLoading && pdfs && pdfs.length > 0 ? (
             <div className="space-y-3">
               {pdfs.map((pdf) => (
@@ -55,18 +54,19 @@ function PaperItem({ paper }: { paper: Paper }) {
                   onClick={(e) => pdf.accessType === 'Paid' && handlePaidPdfClick(e, pdf.name)}
                   target={pdf.accessType === 'Free' ? '_blank' : '_self'}
                   rel="noopener noreferrer"
+                  className="block"
                 >
                   <div className="flex items-center p-3 rounded-lg hover:bg-muted transition-colors">
-                    <div className="p-2 bg-primary/10 rounded-md mr-4">
-                      <FileIcon className="h-6 w-6 text-primary" />
+                    <div className={cn("p-2 rounded-md mr-4", pdf.accessType === 'Paid' ? 'bg-amber-500/10' : 'bg-primary/10')}>
+                      {pdf.accessType === 'Paid' 
+                        ? <Lock className="h-6 w-6 text-amber-500" />
+                        : <FileIcon className="h-6 w-6 text-primary" />
+                      }
                     </div>
                     <div className="flex-1">
                       <p className="font-semibold text-foreground">{pdf.name}</p>
                       <p className="text-sm text-muted-foreground">{pdf.description}</p>
                     </div>
-                    {pdf.accessType === 'Paid' && (
-                      <Lock className="h-5 w-5 text-amber-500 ml-4" />
-                    )}
                   </div>
                 </Link>
               ))}
@@ -99,9 +99,6 @@ export default function HomePage() {
                  <h1 className="font-headline text-3xl font-bold">Smart Study MPSE</h1>
                 <p className="text-white/80">पढ़ाई अब और भी स्मार्ट</p>
              </div>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-              <Bell />
-            </Button>
           </div>
           <div className="relative">
             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-200" />
@@ -113,7 +110,8 @@ export default function HomePage() {
         </div>
 
         <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
-           {isLoading && <p className="text-center p-8">पेपर्स लोड हो रहे हैं...</p>}
+           {isLoading && <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin" /></div>}
+           {!isLoading && papers?.length === 0 && <p className="text-center text-muted-foreground p-8">अभी कोई पेपर उपलब्ध नहीं है। कृपया बाद में जांचें।</p>}
           <Accordion type="single" collapsible className="w-full space-y-4">
             {papers && papers.map((paper, index) => {
               const gradients = [
@@ -128,14 +126,6 @@ export default function HomePage() {
               return <PaperItem key={paper.id} paper={paperWithGradient} />
             })}
           </Accordion>
-        </div>
-
-        <div className="p-6 mt-auto">
-            <Link href="#">
-              <Button size="lg" className="w-full h-14 text-lg font-bold gradient-button shadow-lg transition-transform hover:scale-105 active:scale-100">
-                सभी स्टडी मटेरियल देखें
-              </Button>
-            </Link>
         </div>
       </main>
     </AppLayout>
