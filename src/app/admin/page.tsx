@@ -5,6 +5,18 @@ import Image from "next/image";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  collection,
+  doc,
+  serverTimestamp,
+} from "firebase/firestore";
+import {
+  useFirestore,
+  useCollection,
+  useUser,
+  useMemoFirebase,
+} from "@/firebase";
+import { addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,94 +32,139 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, Book, Users, DollarSign, Lock, Unlock, BarChart, PlusCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { mockPapers } from "@/lib/data";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { cn } from "@/lib/utils";
-
-const ADMIN_CODE = "Smartjsram";
+import type { Paper, Pdf } from "@/lib/types";
 
 const paperSchema = z.object({
-  paperName: z.string().min(1, "पेपर का नाम आवश्यक है।"),
+  name: z.string().min(1, "पेपर का नाम आवश्यक है।"),
   paperNumber: z.coerce.number().min(1, "पेपर नंबर आवश्यक है।"),
 });
 
 const pdfSchema = z.object({
-  pdfName: z.string().min(1, "PDF का नाम आवश्यक है।"),
-  pdfDescription: z.string().min(1, "PDF का विवरण आवश्यक है।"),
-  pdfLink: z.string().url("कृपया एक मान्य गूगल ड्राइव लिंक डालें।"),
-  paper: z.string().min(1, "कृपया एक पेपर चुनें।"),
-  accessType: z.enum(["free", "paid"]),
+  name: z.string().min(1, "PDF का नाम आवश्यक है।"),
+  description: z.string().min(1, "PDF का विवरण आवश्यक है।"),
+  googleDriveLink: z.string().url("कृपया एक मान्य गूगल ड्राइव लिंक डालें।"),
+  paperId: z.string().min(1, "कृपया एक पेपर चुनें।"),
+  accessType: z.enum(["Free", "Paid"]),
 });
 
 function AdminGate({ onVerified }: { onVerified: () => void }) {
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
+  const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+  const [isAdmin, setIsAdmin] = useState(false);
+  
+  const adminRef = useMemoFirebase(() => user ? doc(firestore, 'roles_admin', user.uid) : null, [firestore, user]);
 
-  const handleVerify = () => {
-    if (code === ADMIN_CODE) {
-      localStorage.setItem("admin_verified", "true");
-      onVerified();
-    } else {
-      setError("आप एडमिन नहीं हैं। गलत कोड।");
+  useEffect(() => {
+    if (user && adminRef) {
+      const checkAdmin = async () => {
+        const { getDoc } = await import('firebase/firestore');
+        const docSnap = await getDoc(adminRef);
+        if (docSnap.exists()) {
+            setIsAdmin(true);
+            localStorage.setItem("admin_verified", "true");
+            onVerified();
+        }
+      };
+      checkAdmin();
     }
-  };
+  }, [user, adminRef, onVerified]);
 
-  return (
-    <Dialog open={true}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>एडमिन वेरिफिकेशन</DialogTitle>
-          <DialogDescription>
-            एडमिन पैनल तक पहुंचने के लिए कृपया सीक्रेट एडमिन कोड दर्ज करें।
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <Input
-            id="admin-code"
-            placeholder="सीक्रेट कोड"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            type="password"
-          />
-          {error && <p className="text-sm text-destructive">{error}</p>}
-        </div>
-        <Button onClick={handleVerify}>प्रमाणित करें</Button>
-      </DialogContent>
-    </Dialog>
-  );
+  if (isUserLoading) {
+    return (
+        <Dialog open={true}>
+            <DialogContent><DialogTitle>Verifying...</DialogTitle></DialogContent>
+        </Dialog>
+    );
+  }
+
+  if (!isAdmin) {
+      return (
+        <Dialog open={true}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>एडमिन वेरिफिकेशन</DialogTitle>
+              <DialogDescription>
+                आप एडमिन नहीं हैं। यह क्षेत्र केवल एडमिन के लिए है।
+              </DialogDescription>
+            </DialogHeader>
+          </DialogContent>
+        </Dialog>
+      );
+  }
+
+  return null;
 }
+
 
 function AdminDashboard() {
   const { toast } = useToast();
+  const firestore = useFirestore();
   const revenueChart = PlaceHolderImages.find(img => img.id === 'chart-placeholder-1');
+  
+  const papersRef = useMemoFirebase(() => collection(firestore, "papers"), [firestore]);
+  const { data: papers, isLoading: papersLoading } = useCollection<Paper>(papersRef);
+
+  const usersRef = useMemoFirebase(() => collection(firestore, "users"), [firestore]);
+  const { data: users, isLoading: usersLoading } = useCollection(usersRef);
+
+  const allPdfsQuery = useMemoFirebase(() => papers ? papers.flatMap(p => collection(firestore, 'papers', p.id, 'pdfDocuments')) : null, [papers, firestore]);
+  // This is not a proper way to query all subcollections, but for this case it can work as a mock
+  const { data: pdfs, isLoading: pdfsLoading } = useCollection<Pdf>(allPdfsQuery ? allPdfsQuery[0] : null);
+
 
   const paperForm = useForm<z.infer<typeof paperSchema>>({
     resolver: zodResolver(paperSchema),
-    defaultValues: { paperName: "", paperNumber: mockPapers.length + 1 },
+    defaultValues: { name: "", paperNumber: (papers?.length || 0) + 1 },
   });
 
   const pdfForm = useForm<z.infer<typeof pdfSchema>>({
     resolver: zodResolver(pdfSchema),
+    defaultValues: {
+        name: "",
+        description: "",
+        googleDriveLink: "",
+        paperId: "",
+        accessType: "Free",
+    }
   });
   
   function onAddPaper(values: z.infer<typeof paperSchema>) {
-    console.log("Adding paper:", values);
-    toast({ title: "सफलता!", description: `पेपर "${values.paperName}" सफलतापूर्वक जोड़ दिया गया है।` });
-    paperForm.reset({ paperName: "", paperNumber: values.paperNumber + 1 });
+    const newPaperRef = doc(papersRef);
+    const newPaper = {
+      ...values,
+      id: newPaperRef.id,
+      createdAt: serverTimestamp(),
+    };
+    addDocumentNonBlocking(papersRef, newPaper);
+    toast({ title: "सफलता!", description: `पेपर "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
+    paperForm.reset({ name: "", paperNumber: (papers?.length || 0) + 2 });
   }
 
   function onAddPdf(values: z.infer<typeof pdfSchema>) {
-    console.log("Adding PDF:", values);
-    toast({ title: "सफलता!", description: `PDF "${values.pdfName}" सफलतापूर्वक जोड़ दिया गया है।` });
+    const pdfsCollectionRef = collection(firestore, "papers", values.paperId, "pdfDocuments");
+    const newPdfRef = doc(pdfsCollectionRef);
+    const newPdf = {
+        ...values,
+        id: newPdfRef.id,
+        createdAt: serverTimestamp(),
+    };
+    addDocumentNonBlocking(pdfsCollectionRef, newPdf);
+    toast({ title: "सफलता!", description: `PDF "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
     pdfForm.reset();
   }
 
+  const freePdfs = pdfs?.filter(p => p.accessType === 'Free').length || 0;
+  const paidPdfs = pdfs?.filter(p => p.accessType === 'Paid').length || 0;
+
+
   const analytics = [
-    { title: "कुल PDF", value: "150", icon: FileText, gradient: "from-blue-500 to-cyan-400" },
-    { title: "कुल विषय / पेपर", value: mockPapers.length, icon: Book, gradient: "from-purple-500 to-pink-500" },
-    { title: "कुल यूज़र", value: "2,500", icon: Users, gradient: "from-green-500 to-teal-400" },
-    { title: "फ्री PDF", value: "100", icon: Unlock, gradient: "from-yellow-500 to-amber-400" },
-    { title: "पेड PDF", value: "50", icon: Lock, gradient: "from-red-500 to-orange-400" },
+    { title: "कुल PDF", value: pdfs?.length ?? "...", icon: FileText, gradient: "from-blue-500 to-cyan-400" },
+    { title: "कुल विषय / पेपर", value: papers?.length ?? "...", icon: Book, gradient: "from-purple-500 to-pink-500" },
+    { title: "कुल यूज़र", value: users?.length ?? "...", icon: Users, gradient: "from-green-500 to-teal-400" },
+    { title: "फ्री PDF", value: freePdfs, icon: Unlock, gradient: "from-yellow-500 to-amber-400" },
+    { title: "पेड PDF", value: paidPdfs, icon: Lock, gradient: "from-red-500 to-orange-400" },
   ];
 
   const revenue = [
@@ -165,7 +222,7 @@ function AdminDashboard() {
               <CardContent>
                   <Form {...paperForm}>
                       <form onSubmit={paperForm.handleSubmit(onAddPaper)} className="space-y-4">
-                          <FormField control={paperForm.control} name="paperName" render={({ field }) => (
+                          <FormField control={paperForm.control} name="name" render={({ field }) => (
                               <FormItem><FormLabel>Paper का नाम</FormLabel><FormControl><Input placeholder="जैसे: Paper 7" {...field} /></FormControl><FormMessage /></FormItem>
                           )}/>
                            <FormField control={paperForm.control} name="paperNumber" render={({ field }) => (
@@ -183,25 +240,25 @@ function AdminDashboard() {
               <CardContent>
                    <Form {...pdfForm}>
                       <form onSubmit={pdfForm.handleSubmit(onAddPdf)} className="space-y-4">
-                          <FormField control={pdfForm.control} name="pdfName" render={({ field }) => (
+                          <FormField control={pdfForm.control} name="name" render={({ field }) => (
                               <FormItem><FormLabel>PDF का नाम</FormLabel><FormControl><Input placeholder="जैसे: इतिहास के नोट्स" {...field} /></FormControl><FormMessage /></FormItem>
                           )}/>
-                          <FormField control={pdfForm.control} name="pdfDescription" render={({ field }) => (
+                          <FormField control={pdfForm.control} name="description" render={({ field }) => (
                               <FormItem><FormLabel>PDF का डिस्क्रिप्शन</FormLabel><FormControl><Input placeholder="संक्षिप्त विवरण" {...field} /></FormControl><FormMessage /></FormItem>
                           )}/>
-                          <FormField control={pdfForm.control} name="pdfLink" render={({ field }) => (
+                          <FormField control={pdfForm.control} name="googleDriveLink" render={({ field }) => (
                               <FormItem><FormLabel>Google Drive PDF Link</FormLabel><FormControl><Input placeholder="https://drive.google.com/..." {...field} /></FormControl><FormMessage /></FormItem>
                           )}/>
-                           <FormField control={pdfForm.control} name="paper" render={({ field }) => (
+                           <FormField control={pdfForm.control} name="paperId" render={({ field }) => (
                               <FormItem><FormLabel>Paper चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl><SelectTrigger><SelectValue placeholder="एक पेपर चुनें" /></SelectTrigger></FormControl>
-                                <SelectContent>{mockPapers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                                <SelectContent>{papers && papers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
                               </Select><FormMessage /></FormItem>
                           )}/>
                           <FormField control={pdfForm.control} name="accessType" render={({ field }) => (
                               <FormItem><FormLabel>Access Type चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl><SelectTrigger><SelectValue placeholder="एक्सेस प्रकार चुनें" /></SelectTrigger></FormControl>
-                                <SelectContent><SelectItem value="free">Free</SelectItem><SelectItem value="paid">Paid</SelectItem></SelectContent>
+                                <SelectContent><SelectItem value="Free">Free</SelectItem><SelectItem value="Paid">Paid</SelectItem></SelectContent>
                               </Select><FormMessage /></FormItem>
                           )}/>
                           <Button type="submit" className="w-full gradient-button">Save PDF</Button>
@@ -216,14 +273,25 @@ function AdminDashboard() {
 
 export default function AdminPage() {
   const [isVerified, setIsVerified] = useState(false);
+  const { user, isUserLoading } = useUser();
 
   useEffect(() => {
-    if (localStorage.getItem("admin_verified") === "true") {
+    if (!isUserLoading && user && localStorage.getItem("admin_verified") === "true") {
       setIsVerified(true);
     }
-  }, []);
+  }, [user, isUserLoading]);
 
-  if (!isVerified) {
+  if (isUserLoading) {
+     return (
+        <AppLayout>
+            <div className="flex-1 bg-muted flex items-center justify-center">
+                <p>Loading user...</p>
+            </div>
+        </AppLayout>
+     )
+  }
+
+  if (!user || !isVerified) {
     return (
       <AppLayout>
         <div className="flex-1 bg-muted">

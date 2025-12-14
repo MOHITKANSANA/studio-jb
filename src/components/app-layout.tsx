@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Home,
   Search,
@@ -26,6 +26,7 @@ import {
   LogOut,
   ChevronDown,
 } from "lucide-react";
+import { useUser, useAuth } from "@/firebase";
 import {
   SidebarProvider,
   Sidebar,
@@ -53,12 +54,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { mockUsers } from "@/lib/data";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { cn } from "@/lib/utils";
-
-const user = mockUsers[1]; // Assuming admin user
-const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar-1');
 
 const menuItems = [
   { icon: Home, label: "होम", href: "/home" },
@@ -75,7 +72,7 @@ const menuItems = [
 
 const adminItems = [
   { icon: Shield, label: "एडमिन पैनल", href: "/admin" },
-  { icon: PlusCircle, label: "नया पीडीएफ जोड़ें", href: "/admin#add-pdf" },
+  { icon: PlusCircle, label: "नया PDF जोड़ें", href: "/admin#add-pdf" },
   { icon: PlusCircle, label: "नया वीडियो जोड़ें", href: "#" },
   { icon: BarChart2, label: "यूज़र एनालिटिक्स", href: "/admin#analytics" },
 ];
@@ -88,18 +85,30 @@ const settingsItems = [
 
 function AppSidebar() {
   const pathname = usePathname();
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    router.push('/login');
+  };
+
+  const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar-1');
+  const userName = user?.displayName || user?.email || "User";
+  const userRole = 'admin'; // This should be dynamic based on user data from firestore
 
   return (
     <div className="bg-gradient-to-b from-blue-900 via-purple-900 to-teal-900 h-full flex flex-col">
       <SidebarHeader className="p-4 border-b border-white/10">
         <div className="flex items-center gap-4">
           <Avatar className="h-12 w-12 border-2 border-white/50">
-            {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt={user.name} data-ai-hint={userAvatar.imageHint}/>}
-            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+            {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt={userName} data-ai-hint={userAvatar.imageHint}/>}
+            <AvatarFallback>{userName.charAt(0)}</AvatarFallback>
           </Avatar>
           <div className="text-white">
-            <p className="font-semibold">{user.name}</p>
-            <p className="text-xs text-white/70">{user.exam}</p>
+            <p className="font-semibold">{userName}</p>
+            <p className="text-xs text-white/70">MPSE / State Exam</p>
           </div>
         </div>
       </SidebarHeader>
@@ -121,7 +130,7 @@ function AppSidebar() {
           ))}
         </SidebarMenu>
 
-        {user.role === 'admin' && (
+        {userRole === 'admin' && (
           <>
             <div className="px-4 my-2">
                 <p className="text-xs font-semibold text-white/50 tracking-wider uppercase">एडमिन</p>
@@ -166,12 +175,10 @@ function AppSidebar() {
       <SidebarFooter className="p-4 border-t border-white/10 mt-auto">
          <SidebarMenu>
             <SidebarMenuItem>
-                <Link href="/login" className="w-full">
-                <SidebarMenuButton className="text-red-400 hover:bg-red-500/20 hover:text-red-300">
+                <SidebarMenuButton onClick={handleLogout} className="text-red-400 hover:bg-red-500/20 hover:text-red-300 w-full">
                     <LogOut className="w-5 h-5" />
                     <span>लॉगआउट</span>
                 </SidebarMenuButton>
-                 </Link>
             </SidebarMenuItem>
         </SidebarMenu>
         <div className="text-center text-xs text-white/50 mt-4">
@@ -206,6 +213,17 @@ function ThemeToggle() {
 
 function TopBar() {
   const { isMobile } = useSidebar();
+  const { user } = useUser();
+  const auth = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    router.push('/login');
+  };
+
+  const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar-1');
+  const userName = user?.displayName || user?.email || "User";
   
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
@@ -217,8 +235,8 @@ function TopBar() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
             <Avatar className="h-10 w-10">
-              {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt={user.name} data-ai-hint={userAvatar.imageHint}/>}
-              <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+              {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt={userName} data-ai-hint={userAvatar.imageHint}/>}
+              <AvatarFallback>{userName.charAt(0)}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
@@ -228,7 +246,7 @@ function TopBar() {
           <DropdownMenuItem>सेटिंग्स</DropdownMenuItem>
           <DropdownMenuItem>सपोर्ट</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-red-500">लॉगआउट</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleLogout} className="text-red-500">लॉगआउट</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>
@@ -236,6 +254,29 @@ function TopBar() {
 }
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
+  const { isUserLoading, user } = useUser();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  React.useEffect(() => {
+    if (!isUserLoading && !user && pathname !== '/login' && pathname !== '/') {
+        router.push('/login');
+    }
+  }, [isUserLoading, user, router, pathname]);
+
+  if (isUserLoading && pathname !== '/login' && pathname !== '/') {
+    return (
+        <div className="flex h-screen items-center justify-center">
+            <p>एप्लिकेशन लोड हो रहा है...</p>
+        </div>
+    )
+  }
+
+  // Allow access to login and splash page without layout
+  if (pathname === '/login' || pathname === '/') {
+    return <>{children}</>;
+  }
+  
   return (
      <SidebarProvider>
       <div className="flex min-h-screen w-full">

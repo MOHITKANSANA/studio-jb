@@ -6,6 +6,9 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, User, Lock, Mail, KeyRound, BookOpenCheck } from 'lucide-react';
+import { useAuth, initiateEmailSignIn, initiateEmailSignUp } from '@/firebase';
+import { setDoc, doc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +17,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'कृपया एक मान्य ईमेल दर्ज करें।' }),
@@ -54,6 +58,8 @@ function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const auth = useAuth();
+  const firestore = useFirestore();
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -67,22 +73,55 @@ function AuthForm() {
 
   const selectedRole = signupForm.watch('role');
 
-  function onLogin(values: z.infer<typeof loginSchema>) {
-    console.log('Login attempt:', values);
-    toast({
-      title: 'सफलतापूर्वक लॉगिन हुआ!',
-      description: 'होमपेज पर रीडायरेक्ट किया जा रहा है...',
-    });
-    router.push('/home');
+  async function onLogin(values: z.infer<typeof loginSchema>) {
+    try {
+      await initiateEmailSignIn(auth, values.email, values.password);
+      toast({
+        title: 'सफलतापूर्वक लॉगिन हुआ!',
+        description: 'होमपेज पर रीडायरेक्ट किया जा रहा है...',
+      });
+      router.push('/home');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: 'लॉगिन विफल',
+        description: error.message,
+      });
+    }
   }
 
-  function onSignup(values: z.infer<typeof signupSchema>) {
-    console.log('Signup attempt:', values);
-     toast({
-      title: 'अकाउंट सफलतापूर्वक बन गया!',
-      description: 'लॉगिन करने के लिए आगे बढ़ें।',
-    });
-    // In a real app, you might auto-login or switch to the login tab.
+  async function onSignup(values: z.infer<typeof signupSchema>) {
+    try {
+      const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
+      if (userCredential && userCredential.user) {
+        const user = userCredential.user;
+        const userRef = doc(firestore, "users", user.uid);
+        const userData = {
+          id: user.uid,
+          fullName: values.fullName,
+          email: values.email,
+          role: values.role,
+        };
+        setDocumentNonBlocking(userRef, userData, { merge: true });
+
+        if (values.role === 'admin') {
+          const adminRef = doc(firestore, "roles_admin", user.uid);
+          const adminData = { userId: user.uid, adminCode: values.adminCode };
+          setDocumentNonBlocking(adminRef, adminData, { merge: true });
+        }
+        toast({
+          title: 'अकाउंट सफलतापूर्वक बन गया!',
+          description: 'लॉगिन करने के लिए आगे बढ़ें।',
+        });
+        // You might want to switch to the login tab here
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: 'साइन-अप विफल',
+        description: error.message,
+      });
+    }
   }
   
   return (

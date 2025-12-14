@@ -2,22 +2,22 @@ export type Pdf = {
   id: string;
   name: string;
   description: string;
-  url: string;
-  access: 'free' | 'paid';
+  googleDriveLink: string;
+  accessType: 'Free' | 'Paid';
+  paperId: string;
 };
 
 export type Paper = {
   id: string;
   name: string;
-  number: number;
-  gradient: string;
-  pdfs: Pdf[];
+  paperNumber: number;
+  gradient?: string; // Optional gradient for styling
+  pdfs?: Pdf[]; // This might be populated from a subcollection
 };
 
 export type User = {
   id: string;
-  name: string;
+  fullName: string;
   email: string;
   role: 'student' | 'admin';
-  exam: string;
 };
