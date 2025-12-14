@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -9,6 +10,7 @@ import {
   collection,
   doc,
   serverTimestamp,
+  getDoc,
 } from "firebase/firestore";
 import {
   useFirestore,
@@ -16,7 +18,7 @@ import {
   useUser,
   useMemoFirebase,
 } from "@/firebase";
-import { addDocumentNonBlocking, setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { AppLayout } from "@/components/app-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Book, Users, DollarSign, Lock, Unlock, BarChart, PlusCircle } from "lucide-react";
+import { FileText, Book, Users, DollarSign, Lock, Unlock, BarChart, PlusCircle, LoaderCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { cn } from "@/lib/utils";
@@ -53,28 +55,50 @@ function AdminGate({ onVerified }: { onVerified: () => void }) {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(true);
   
-  const adminRef = useMemoFirebase(() => user ? doc(firestore, 'roles_admin', user.uid) : null, [firestore, user]);
-
   useEffect(() => {
-    if (user && adminRef) {
-      const checkAdmin = async () => {
-        const { getDoc } = await import('firebase/firestore');
-        const docSnap = await getDoc(adminRef);
-        if (docSnap.exists()) {
-            setIsAdmin(true);
-            localStorage.setItem("admin_verified", "true");
-            onVerified();
-        }
-      };
-      checkAdmin();
+    // If user is not loaded yet, do nothing.
+    if (isUserLoading) {
+      return;
     }
-  }, [user, adminRef, onVerified]);
+    
+    // If there is no user, verification fails.
+    if (!user) {
+        setIsVerifying(false);
+        setIsAdmin(false);
+        return;
+    }
 
-  if (isUserLoading) {
+    const checkAdminStatus = async () => {
+        try {
+            const adminRef = doc(firestore, 'roles_admin', user.uid);
+            const docSnap = await getDoc(adminRef);
+            if (docSnap.exists()) {
+                setIsAdmin(true);
+                localStorage.setItem("admin_verified", "true");
+                onVerified();
+            } else {
+                setIsAdmin(false);
+            }
+        } catch (error) {
+            console.error("Error checking admin status:", error);
+            setIsAdmin(false);
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+
+    checkAdminStatus();
+  }, [user, firestore, onVerified, isUserLoading]);
+
+  if (isVerifying || isUserLoading) {
     return (
         <Dialog open={true}>
-            <DialogContent><DialogTitle>Verifying...</DialogTitle></DialogContent>
+            <DialogContent className="flex items-center justify-center">
+                <LoaderCircle className="w-8 h-8 animate-spin mr-2" />
+                <DialogTitle>एडमिन स्थिति की जाँच हो रही है...</DialogTitle>
+            </DialogContent>
         </Dialog>
     );
   }
@@ -84,7 +108,7 @@ function AdminGate({ onVerified }: { onVerified: () => void }) {
         <Dialog open={true}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>एडमिन वेरिफिकेशन</DialogTitle>
+              <DialogTitle>पहुंच प्रतिबंधित</DialogTitle>
               <DialogDescription>
                 आप एडमिन नहीं हैं। यह क्षेत्र केवल एडमिन के लिए है।
               </DialogDescription>
@@ -102,6 +126,8 @@ function AdminDashboard() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const revenueChart = PlaceHolderImages.find(img => img.id === 'chart-placeholder-1');
+  const [isPaperSubmitting, setIsPaperSubmitting] = useState(false);
+  const [isPdfSubmitting, setIsPdfSubmitting] = useState(false);
   
   const papersRef = useMemoFirebase(() => collection(firestore, "papers"), [firestore]);
   const { data: papers, isLoading: papersLoading } = useCollection<Paper>(papersRef);
@@ -109,9 +135,8 @@ function AdminDashboard() {
   const usersRef = useMemoFirebase(() => collection(firestore, "users"), [firestore]);
   const { data: users, isLoading: usersLoading } = useCollection(usersRef);
 
-  const allPdfsQuery = useMemoFirebase(() => papers ? papers.flatMap(p => collection(firestore, 'papers', p.id, 'pdfDocuments')) : null, [papers, firestore]);
-  // This is not a proper way to query all subcollections, but for this case it can work as a mock
-  const { data: pdfs, isLoading: pdfsLoading } = useCollection<Pdf>(allPdfsQuery ? allPdfsQuery[0] : null);
+  const allPdfsQuery = useMemoFirebase(() => papers ? collection(firestore, 'papers', papers[0]?.id, 'pdfDocuments') : null, [papers, firestore]);
+  const { data: pdfs, isLoading: pdfsLoading } = useCollection<Pdf>(allPdfsQuery);
 
 
   const paperForm = useForm<z.infer<typeof paperSchema>>({
@@ -130,19 +155,22 @@ function AdminDashboard() {
     }
   });
   
-  function onAddPaper(values: z.infer<typeof paperSchema>) {
+  async function onAddPaper(values: z.infer<typeof paperSchema>) {
+    setIsPaperSubmitting(true);
     const newPaperRef = doc(papersRef);
     const newPaper = {
       ...values,
       id: newPaperRef.id,
       createdAt: serverTimestamp(),
     };
-    addDocumentNonBlocking(papersRef, newPaper);
+    await addDocumentNonBlocking(papersRef, newPaper);
     toast({ title: "सफलता!", description: `पेपर "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
     paperForm.reset({ name: "", paperNumber: (papers?.length || 0) + 2 });
+    setIsPaperSubmitting(false);
   }
 
-  function onAddPdf(values: z.infer<typeof pdfSchema>) {
+  async function onAddPdf(values: z.infer<typeof pdfSchema>) {
+    setIsPdfSubmitting(true);
     const pdfsCollectionRef = collection(firestore, "papers", values.paperId, "pdfDocuments");
     const newPdfRef = doc(pdfsCollectionRef);
     const newPdf = {
@@ -150,9 +178,10 @@ function AdminDashboard() {
         id: newPdfRef.id,
         createdAt: serverTimestamp(),
     };
-    addDocumentNonBlocking(pdfsCollectionRef, newPdf);
+    await addDocumentNonBlocking(pdfsCollectionRef, newPdf);
     toast({ title: "सफलता!", description: `PDF "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
     pdfForm.reset();
+    setIsPdfSubmitting(false);
   }
 
   const freePdfs = pdfs?.filter(p => p.accessType === 'Free').length || 0;
@@ -228,7 +257,9 @@ function AdminDashboard() {
                            <FormField control={paperForm.control} name="paperNumber" render={({ field }) => (
                               <FormItem><FormLabel>Paper नंबर</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                           )}/>
-                          <Button type="submit" className="w-full gradient-button">नया पेपर जोड़ें</Button>
+                          <Button type="submit" className="w-full gradient-button" disabled={isPaperSubmitting}>
+                            {isPaperSubmitting ? <LoaderCircle className="animate-spin" /> : "नया पेपर जोड़ें"}
+                          </Button>
                       </form>
                   </Form>
               </CardContent>
@@ -261,7 +292,9 @@ function AdminDashboard() {
                                 <SelectContent><SelectItem value="Free">Free</SelectItem><SelectItem value="Paid">Paid</SelectItem></SelectContent>
                               </Select><FormMessage /></FormItem>
                           )}/>
-                          <Button type="submit" className="w-full gradient-button">Save PDF</Button>
+                          <Button type="submit" className="w-full gradient-button" disabled={isPdfSubmitting}>
+                            {isPdfSubmitting ? <LoaderCircle className="animate-spin" /> : "Save PDF"}
+                          </Button>
                       </form>
                   </Form>
               </CardContent>
@@ -276,21 +309,25 @@ export default function AdminPage() {
   const { user, isUserLoading } = useUser();
 
   useEffect(() => {
+    // We trust localStorage for initial quick check to avoid flicker,
+    // but the final gate is AdminGate's useEffect which re-verifies with Firestore.
     if (!isUserLoading && user && localStorage.getItem("admin_verified") === "true") {
       setIsVerified(true);
     }
   }, [user, isUserLoading]);
 
+  // isUserLoading from useUser() is the primary loading state.
   if (isUserLoading) {
      return (
         <AppLayout>
             <div className="flex-1 bg-muted flex items-center justify-center">
-                <p>Loading user...</p>
+                <LoaderCircle className="w-10 h-10 animate-spin text-primary" />
             </div>
         </AppLayout>
      )
   }
-
+  
+  // If user is loaded but not logged in OR is not verified yet, show the gate
   if (!user || !isVerified) {
     return (
       <AppLayout>
@@ -301,6 +338,7 @@ export default function AdminPage() {
     );
   }
 
+  // User is logged in and verified
   return (
     <AppLayout>
       <main className="flex-1 overflow-y-auto">
@@ -309,3 +347,5 @@ export default function AdminPage() {
     </AppLayout>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -25,8 +26,11 @@ import {
   HelpCircle,
   LogOut,
   ChevronDown,
+  LoaderCircle,
 } from "lucide-react";
-import { useUser, useAuth } from "@/firebase";
+import { useUser, useAuth, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
+import { doc } from 'firebase/firestore';
+
 import {
   SidebarProvider,
   Sidebar,
@@ -56,6 +60,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { cn } from "@/lib/utils";
+import type { User as AppUser } from '@/lib/types';
+
 
 const menuItems = [
   { icon: Home, label: "होम", href: "/home" },
@@ -88,6 +94,14 @@ function AppSidebar() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const router = useRouter();
+  const firestore = useFirestore();
+
+  const userDocRef = useMemoFirebase(() => {
+      if (!user) return null;
+      return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
+  const { data: appUser, isLoading: isAppUserLoading } = useDoc<AppUser>(userDocRef);
 
   const handleLogout = async () => {
     await auth.signOut();
@@ -95,8 +109,8 @@ function AppSidebar() {
   };
 
   const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar-1');
-  const userName = user?.displayName || user?.email || "User";
-  const userRole = 'admin'; // This should be dynamic based on user data from firestore
+  const userName = appUser?.fullName || user?.email || "User";
+  const userRole = appUser?.role;
 
   return (
     <div className="bg-gradient-to-b from-blue-900 via-purple-900 to-teal-900 h-full flex flex-col">
@@ -141,7 +155,7 @@ function AppSidebar() {
                   <Link href={item.href} className="w-full">
                     <SidebarMenuButton
                       className="text-sidebar-foreground hover:bg-white/10 hover:text-white data-[active=true]:bg-white/20 data-[active=true]:text-white"
-                      isActive={pathname === item.href}
+                      isActive={pathname === item.href || pathname.startsWith(item.href)}
                     >
                       <item.icon className="w-5 h-5" />
                       <span>{item.label}</span>
@@ -266,8 +280,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (isUserLoading && pathname !== '/login' && pathname !== '/') {
     return (
-        <div className="flex h-screen items-center justify-center">
-            <p>एप्लिकेशन लोड हो रहा है...</p>
+        <div className="flex h-screen items-center justify-center bg-background">
+            <LoaderCircle className="w-10 h-10 animate-spin text-primary" />
         </div>
     )
   }
@@ -293,3 +307,5 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -5,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Eye, EyeOff, User, Lock, Mail, KeyRound, BookOpenCheck } from 'lucide-react';
+import { Eye, EyeOff, User, Lock, Mail, KeyRound, BookOpenCheck, LoaderCircle } from 'lucide-react';
 import { useAuth, initiateEmailSignIn, initiateEmailSignUp, initiatePasswordReset } from '@/firebase';
 import { setDoc, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
@@ -62,6 +63,7 @@ export default function LoginPage() {
 function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isForgotPasswordOpen, setForgotPasswordOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const auth = useAuth();
@@ -84,7 +86,30 @@ function AuthForm() {
 
   const selectedRole = signupForm.watch('role');
 
+  function handleAuthError(error: any, formType: 'login' | 'signup' | 'reset') {
+    let title = 'एक त्रुटि हुई';
+    let description = error.message;
+
+    if (error.code === 'auth/email-already-in-use') {
+        title = 'साइन-अप विफल';
+        description = 'यह ईमेल पहले से पंजीकृत है। कृपया लॉगिन करें।';
+    } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+        title = 'लॉगिन विफल';
+        description = 'अमान्य ईमेल या पासवर्ड। कृपया पुनः प्रयास करें।';
+    } else if (formType === 'reset' && error.code === 'auth/user-not-found'){
+        title = 'रीसेट विफल';
+        description = 'यह ईमेल पंजीकृत नहीं है। कृपया दोबारा जांचें।';
+    }
+    
+    toast({
+        variant: "destructive",
+        title: title,
+        description: description,
+    });
+  }
+
   async function onLogin(values: z.infer<typeof loginSchema>) {
+    setIsLoading(true);
     try {
       await initiateEmailSignIn(auth, values.email, values.password);
       toast({
@@ -93,15 +118,14 @@ function AuthForm() {
       });
       router.push('/home');
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: 'लॉगिन विफल',
-        description: error.message,
-      });
+      handleAuthError(error, 'login');
+    } finally {
+        setIsLoading(false);
     }
   }
 
   async function onSignup(values: z.infer<typeof signupSchema>) {
+    setIsLoading(true);
     try {
       const userCredential = await initiateEmailSignUp(auth, values.email, values.password);
       if (userCredential && userCredential.user) {
@@ -117,25 +141,26 @@ function AuthForm() {
 
         if (values.role === 'admin') {
           const adminRef = doc(firestore, "roles_admin", user.uid);
-          const adminData = { userId: user.uid, adminCode: values.adminCode };
+          const adminData = { userId: user.uid };
           setDocumentNonBlocking(adminRef, adminData, { merge: true });
         }
+
         toast({
           title: 'अकाउंट सफलतापूर्वक बन गया!',
-          description: 'लॉगिन करने के लिए आगे बढ़ें।',
+          description: 'होमपेज पर रीडायरेक्ट किया जा रहा है...',
         });
-        // You might want to switch to the login tab here
+        
+        router.push('/home');
       }
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: 'साइन-अप विफल',
-        description: error.message,
-      });
+      handleAuthError(error, 'signup');
+    } finally {
+        setIsLoading(false);
     }
   }
   
   async function onForgotPassword(values: z.infer<typeof forgotPasswordSchema>) {
+    setIsLoading(true);
     try {
         await initiatePasswordReset(auth, values.email);
         toast({
@@ -145,11 +170,9 @@ function AuthForm() {
         setForgotPasswordOpen(false);
         forgotPasswordForm.reset();
     } catch(error: any) {
-        toast({
-            variant: "destructive",
-            title: "रीसेट विफल",
-            description: "यह ईमेल पंजीकृत नहीं हो सकता है। कृपया दोबारा जांचें।"
-        })
+        handleAuthError(error, 'reset');
+    } finally {
+        setIsLoading(false);
     }
   }
   
@@ -199,8 +222,8 @@ function AuthForm() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full h-12 text-lg font-bold gradient-button transition-transform active:scale-[0.98]">
-                लॉगिन करें
+              <Button type="submit" className="w-full h-12 text-lg font-bold gradient-button transition-transform active:scale-[0.98]" disabled={isLoading}>
+                 {isLoading ? <LoaderCircle className="animate-spin" /> : 'लॉगिन करें'}
               </Button>
               <div className="text-center">
                 <button type="button" onClick={() => setForgotPasswordOpen(true)} className="text-sm text-white/70 hover:text-white hover:underline">पासवर्ड भूल गए?</button>
@@ -239,8 +262,8 @@ function AuthForm() {
                 )}/>
               )}
 
-              <Button type="submit" className="w-full h-12 text-lg font-bold gradient-button transition-transform active:scale-[0.98]">
-                अकाउंट बनाएं
+              <Button type="submit" className="w-full h-12 text-lg font-bold gradient-button transition-transform active:scale-[0.98]" disabled={isLoading}>
+                 {isLoading ? <LoaderCircle className="animate-spin" /> : 'अकाउंट बनाएं'}
               </Button>
             </form>
           </Form>
@@ -264,7 +287,7 @@ function AuthForm() {
                         <FormItem>
                         <FormLabel>ईमेल</FormLabel>
                         <FormControl>
-                            <Input placeholder=" आपका@ईमेल.com" {...field} />
+                            <Input placeholder=" आपका@ईमेल.com" {...field} disabled={isLoading}/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -272,9 +295,11 @@ function AuthForm() {
                     />
                     <DialogFooter>
                         <DialogClose asChild>
-                            <Button type="button" variant="secondary">रद्द करें</Button>
+                            <Button type="button" variant="secondary" disabled={isLoading}>रद्द करें</Button>
                         </DialogClose>
-                        <Button type="submit" className="gradient-button">रीसेट लिंक भेजें</Button>
+                        <Button type="submit" className="gradient-button" disabled={isLoading}>
+                            {isLoading ? <LoaderCircle className="animate-spin" /> : 'रीसेट लिंक भेजें'}
+                        </Button>
                     </DialogFooter>
                 </form>
             </Form>
@@ -283,3 +308,5 @@ function AuthForm() {
     </>
   );
 }
+
+    
