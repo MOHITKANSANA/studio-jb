@@ -164,7 +164,7 @@ function AdminDashboard() {
     { title: "कुल विषय / पेपर", value: papers?.length ?? "...", icon: Book, gradient: "from-purple-500 to-pink-500" },
     { title: "कुल यूज़र", value: users?.length ?? "...", icon: Users, gradient: "from-green-500 to-teal-400" },
     { title: "फ्री PDF", value: freePdfs, icon: Unlock, gradient: "from-yellow-500 to-amber-400" },
-    { title: "पेड PDF", value: paidPdfs, icon: Lock, gradient: "from-red-500 to-orange-400" },
+    { title: "पेड PDF", value: paidPdfs, icon: Lock, gradient: "from-red-500 to-orange-500" },
   ];
 
   const revenue = [

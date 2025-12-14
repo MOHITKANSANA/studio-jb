@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, User, Lock, Mail, KeyRound, BookOpenCheck } from 'lucide-react';
-import { useAuth, initiateEmailSignIn, initiateEmailSignUp } from '@/firebase';
+import { useAuth, initiateEmailSignIn, initiateEmailSignUp, initiatePasswordReset } from '@/firebase';
 import { setDoc, doc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -40,9 +41,13 @@ const signupSchema = z.object({
   path: ['adminCode'],
 });
 
+const forgotPasswordSchema = z.object({
+    email: z.string().email({ message: 'कृपया एक मान्य ईमेल दर्ज करें।'})
+});
+
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-purple-600 via-blue-600 to-cyan-500 p-4">
+    <main className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-yellow-400 via-red-500 to-orange-600 p-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8 text-white text-center">
           <BookOpenCheck className="w-16 h-16 mb-4" />
@@ -56,6 +61,7 @@ export default function LoginPage() {
 
 function AuthForm() {
   const [showPassword, setShowPassword] = useState(false);
+  const [isForgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const auth = useAuth();
@@ -69,6 +75,11 @@ function AuthForm() {
   const signupForm = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
     defaultValues: { fullName: '', email: '', password: '', role: 'student', adminCode: '' },
+  });
+  
+  const forgotPasswordForm = useForm<z.infer<typeof forgotPasswordSchema>>({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: { email: '' },
   });
 
   const selectedRole = signupForm.watch('role');
@@ -124,7 +135,26 @@ function AuthForm() {
     }
   }
   
+  async function onForgotPassword(values: z.infer<typeof forgotPasswordSchema>) {
+    try {
+        await initiatePasswordReset(auth, values.email);
+        toast({
+            title: "पासवर्ड रीसेट ईमेल भेजा गया!",
+            description: "अपना पासवर्ड रीसेट करने के लिए कृपया अपना इनबॉक्स जांचें।"
+        });
+        setForgotPasswordOpen(false);
+        forgotPasswordForm.reset();
+    } catch(error: any) {
+        toast({
+            variant: "destructive",
+            title: "रीसेट विफल",
+            description: "यह ईमेल पंजीकृत नहीं हो सकता है। कृपया दोबारा जांचें।"
+        })
+    }
+  }
+  
   return (
+     <>
      <Tabs defaultValue="login" className="w-full">
       <TabsList className="grid w-full grid-cols-2 bg-black/20 border border-white/20 h-12 p-1">
         <TabsTrigger value="login" className="data-[state=active]:bg-white/20 data-[state=active]:text-white text-white/80 h-full">लॉगिन</TabsTrigger>
@@ -173,7 +203,7 @@ function AuthForm() {
                 लॉगिन करें
               </Button>
               <div className="text-center">
-                <a href="#" className="text-sm text-white/70 hover:text-white hover:underline">पासवर्ड भूल गए?</a>
+                <button type="button" onClick={() => setForgotPasswordOpen(true)} className="text-sm text-white/70 hover:text-white hover:underline">पासवर्ड भूल गए?</button>
               </div>
             </form>
           </Form>
@@ -217,5 +247,39 @@ function AuthForm() {
         </TabsContent>
       </div>
     </Tabs>
+    <Dialog open={isForgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>पासवर्ड भूल गए?</DialogTitle>
+                <DialogDescription>
+                अपना पासवर्ड रीसेट करने के लिए कृपया अपना पंजीकृत ईमेल पता दर्ज करें। हम आपको एक रीसेट लिंक भेजेंगे।
+                </DialogDescription>
+            </DialogHeader>
+            <Form {...forgotPasswordForm}>
+                <form onSubmit={forgotPasswordForm.handleSubmit(onForgotPassword)} className="space-y-4">
+                    <FormField
+                    control={forgotPasswordForm.control}
+                    name="email"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>ईमेल</FormLabel>
+                        <FormControl>
+                            <Input placeholder=" आपका@ईमेल.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">रद्द करें</Button>
+                        </DialogClose>
+                        <Button type="submit" className="gradient-button">रीसेट लिंक भेजें</Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        </DialogContent>
+    </Dialog>
+    </>
   );
 }

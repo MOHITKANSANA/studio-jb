@@ -32,6 +32,7 @@ function PaperItem({ paper }: { paper: Paper }) {
   const handlePaidPdfClick = (e: React.MouseEvent, pdfName: string) => {
     e.preventDefault();
     toast({
+      variant: "destructive",
       title: `"${pdfName}" एक पेड PDF है`,
       description: "यह PDF पेड है, खरीदने के लिए आगे बढ़ें।",
     });
@@ -40,7 +41,7 @@ function PaperItem({ paper }: { paper: Paper }) {
   return (
     <AccordionItem value={paper.id} className="border-b-0">
       <Card className="overflow-hidden shadow-md border-0 transition-all duration-300 ease-in-out hover:shadow-xl">
-        <AccordionTrigger className={cn("p-6 text-white text-left hover:no-underline bg-gradient-to-r", paper.gradient || 'from-gray-500 to-gray-600')}>
+        <AccordionTrigger className={cn("p-6 text-white text-left hover:no-underline", paper.gradient || 'bg-gradient-to-r from-yellow-500 to-red-600')}>
           <h3 className="font-headline text-2xl font-bold">{paper.name}</h3>
         </AccordionTrigger>
         <AccordionContent className="p-4 bg-background">
@@ -84,15 +85,15 @@ export default function HomePage() {
   const firestore = useFirestore();
 
   const papersRef = useMemoFirebase(
-    () => query(collection(firestore, "papers"), orderBy("paperNumber"), limit(5)),
+    () => query(collection(firestore, "papers"), orderBy("paperNumber")),
     [firestore]
   );
   const { data: papers, isLoading } = useCollection<Paper>(papersRef);
 
   return (
     <AppLayout>
-      <main className="flex-1 flex flex-col bg-gradient-to-b from-blue-100 via-purple-100 to-pink-100 dark:from-blue-900/10 dark:via-purple-900/10 dark:to-pink-900/10">
-        <div className="bg-gradient-to-r from-blue-700 via-purple-600 to-pink-500 text-white p-6 shadow-lg">
+      <main className="flex-1 flex flex-col bg-gradient-to-b from-yellow-100 via-red-100 to-orange-100 dark:from-yellow-900/10 dark:via-red-900/10 dark:to-orange-900/10">
+        <div className="bg-gradient-to-r from-yellow-500 via-red-600 to-orange-500 text-white p-6 shadow-lg">
           <div className="flex justify-between items-center mb-4">
              <div>
                  <h1 className="font-headline text-3xl font-bold">Smart Study MPSE</h1>
@@ -103,7 +104,7 @@ export default function HomePage() {
             </Button>
           </div>
           <div className="relative">
-            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-200" />
             <Input
               placeholder="विषय, टॉपिक, नोट्स या वीडियो खोजें…"
               className="w-full h-14 pl-12 pr-4 rounded-full bg-white/20 text-white placeholder:text-white/70 border-0 focus-visible:ring-2 focus-visible:ring-white"
@@ -114,9 +115,18 @@ export default function HomePage() {
         <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
            {isLoading && <p className="text-center p-8">पेपर्स लोड हो रहे हैं...</p>}
           <Accordion type="single" collapsible className="w-full space-y-4">
-            {papers && papers.map((paper) => (
-              <PaperItem key={paper.id} paper={paper} />
-            ))}
+            {papers && papers.map((paper, index) => {
+              const gradients = [
+                'from-blue-500 to-indigo-600',
+                'from-purple-500 to-pink-600',
+                'from-green-500 to-teal-600',
+                'from-orange-500 to-red-600',
+                'from-cyan-500 to-light-blue-600',
+                'from-rose-500 to-fuchsia-600',
+              ];
+              const paperWithGradient = { ...paper, gradient: gradients[index % gradients.length]};
+              return <PaperItem key={paper.id} paper={paperWithGradient} />
+            })}
           </Accordion>
         </div>
 
