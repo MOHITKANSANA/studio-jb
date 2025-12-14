@@ -23,7 +23,7 @@ function PaperItem({ paper }: { paper: Paper }) {
   const { toast } = useToast();
 
   const pdfsRef = useMemoFirebase(
-    () => collection(firestore, `papers/${paper.id}/pdfDocuments`),
+    () => query(collection(firestore, `papers/${paper.id}/pdfDocuments`), orderBy("name")),
     [firestore, paper.id]
   );
   const { data: pdfs, isLoading } = useCollection<Pdf>(pdfsRef);
@@ -93,24 +93,18 @@ export default function HomePage() {
   return (
     <AppLayout>
       <main className="flex-1 flex flex-col bg-gradient-to-b from-yellow-100 via-red-100 to-orange-100 dark:from-yellow-900/10 dark:via-red-900/10 dark:to-orange-900/10">
-        <div className="bg-gradient-to-r from-yellow-500 via-red-600 to-orange-500 text-white p-6 shadow-lg">
-          <div className="flex justify-between items-center mb-4">
-             <div>
-                 <h1 className="font-headline text-3xl font-bold">Smart Study MPSE</h1>
-                <p className="text-white/80">पढ़ाई अब और भी स्मार्ट</p>
-             </div>
-          </div>
-          <div className="relative">
-            <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-200" />
-            <Input
-              placeholder="विषय, टॉपिक, नोट्स या वीडियो खोजें…"
-              className="w-full h-14 pl-12 pr-4 rounded-full bg-white/20 text-white placeholder:text-white/70 border-0 focus-visible:ring-2 focus-visible:ring-white"
-            />
-          </div>
+        <div className="p-6">
+            <div className="relative">
+                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
+                <Input
+                placeholder="विषय, टॉपिक, नोट्स या वीडियो खोजें…"
+                className="w-full h-14 pl-12 pr-4 rounded-full bg-background border-2 focus-visible:ring-primary"
+                />
+            </div>
         </div>
 
-        <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
-           {isLoading && <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin" /></div>}
+        <div className="flex-1 p-4 sm:p-6 pt-0 overflow-y-auto">
+           {isLoading && <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin text-primary" /></div>}
            {!isLoading && papers?.length === 0 && <p className="text-center text-muted-foreground p-8">अभी कोई पेपर उपलब्ध नहीं है। कृपया बाद में जांचें।</p>}
           <Accordion type="single" collapsible className="w-full space-y-4">
             {papers && papers.map((paper, index) => {

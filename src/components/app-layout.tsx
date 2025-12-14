@@ -11,6 +11,7 @@ import {
   Bell,
   LogOut,
   LoaderCircle,
+  BookOpenCheck
 } from "lucide-react";
 import { useUser, useAuth, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
 import { doc } from 'firebase/firestore';
@@ -79,6 +80,8 @@ function AppSidebar() {
   const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar-1');
   const userName = appUser?.fullName || user?.email || "User";
   const userRole = appUser?.role;
+  const userInitial = (appUser?.fullName || user?.email || "U").charAt(0).toUpperCase();
+
 
   return (
     <div className="bg-gradient-to-b from-blue-900 via-purple-900 to-teal-900 h-full flex flex-col">
@@ -86,7 +89,7 @@ function AppSidebar() {
         <div className="flex items-center gap-4">
           <Avatar className="h-12 w-12 border-2 border-white/50">
             {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt={userName} data-ai-hint={userAvatar.imageHint}/>}
-            <AvatarFallback>{userName.charAt(0)}</AvatarFallback>
+            <AvatarFallback className="bg-gradient-to-br from-yellow-400 via-red-500 to-orange-600 text-white font-bold">{userInitial}</AvatarFallback>
           </Avatar>
           <div className="text-white">
             <p className="font-semibold">{userName}</p>
@@ -169,12 +172,14 @@ function TopBar() {
 
   const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar-1');
   const userName = user?.displayName || user?.email || "User";
+  const userInitial = (user?.displayName || user?.email || "U").charAt(0).toUpperCase();
   
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
       <SidebarTrigger className={cn(!isMobile && "hidden")}/>
-      <div className="flex-1">
-        {/* Placeholder for top bar content if needed */}
+      <div className="flex-1 flex items-center gap-2">
+         <BookOpenCheck className="w-7 h-7 text-primary" />
+         <h1 className="font-headline text-xl font-bold gradient-text">Smart Study MPSE</h1>
       </div>
        <Button variant="ghost" size="icon" className="text-foreground/70 hover:text-foreground">
           <Bell />
@@ -184,7 +189,7 @@ function TopBar() {
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
             <Avatar className="h-10 w-10">
               {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt={userName} data-ai-hint={userAvatar.imageHint}/>}
-              <AvatarFallback>{userName.charAt(0)}</AvatarFallback>
+              <AvatarFallback className="bg-gradient-to-br from-yellow-400 via-red-500 to-orange-600 text-white font-bold">{userInitial}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
