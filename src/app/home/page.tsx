@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lock, File as FileIcon, Search as SearchIcon, LoaderCircle } from "lucide-react";
 import { collection, query, orderBy, getDocs } from "firebase/firestore";
@@ -15,36 +16,40 @@ import { cn } from "@/lib/utils";
 import type { Paper, PdfDocument as Pdf, Tab } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
+const pdfGradients = [
+    'from-sky-200 to-blue-200 dark:from-sky-900/70 dark:to-blue-900/70',
+    'from-fuchsia-200 to-purple-200 dark:from-fuchsia-900/70 dark:to-purple-900/70',
+    'from-emerald-200 to-green-200 dark:from-emerald-900/70 dark:to-green-900/70',
+    'from-amber-200 to-yellow-200 dark:from-amber-900/70 dark:to-yellow-900/70',
+    'from-rose-200 to-red-200 dark:from-rose-900/70 dark:to-red-900/70',
+    'from-violet-200 to-indigo-200 dark:from-violet-900/70 dark:to-indigo-900/70',
+];
+
 function PdfItem({ pdf, index }: { pdf: Pdf; index: number }) {
     const { toast } = useToast();
+    const router = useRouter();
     const isPaid = pdf.accessType === 'Paid';
     
-    const gradients = [
-        'from-sky-200 to-blue-200 dark:from-sky-900/70 dark:to-blue-900/70',
-        'from-fuchsia-200 to-purple-200 dark:from-fuchsia-900/70 dark:to-purple-900/70',
-        'from-emerald-200 to-green-200 dark:from-emerald-900/70 dark:to-green-900/70',
-        'from-amber-200 to-yellow-200 dark:from-amber-900/70 dark:to-yellow-900/70',
-        'from-rose-200 to-red-200 dark:from-rose-900/70 dark:to-red-900/70',
-        'from-violet-200 to-indigo-200 dark:from-violet-900/70 dark:to-indigo-900/70',
-    ];
-    const gradientClass = gradients[index % gradients.length];
+    const gradientClass = pdfGradients[index % pdfGradients.length];
 
-
-    const handlePaidPdfClick = (e: React.MouseEvent) => {
+    const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
-        toast({
-            variant: "destructive",
-            title: `"${pdf.name}" एक पेड PDF है`,
-            description: "यह PDF पेड है, खरीदने के लिए आगे बढ़ें।",
-        });
+        if (isPaid) {
+            toast({
+                variant: "destructive",
+                title: `"${pdf.name}" एक पेड PDF है`,
+                description: "यह PDF पेड है, खरीदने के लिए आगे बढ़ें।",
+            });
+        } else {
+            // Navigate to the ad gateway before showing the PDF
+            router.push(`/ad-gateway?url=${encodeURIComponent(pdf.googleDriveLink)}`);
+        }
     }
 
     return (
-        <Link 
-          href={isPaid ? "#" : pdf.googleDriveLink} 
-          onClick={isPaid ? handlePaidPdfClick : undefined}
-          target={isPaid ? '_self' : '_blank'}
-          rel="noopener noreferrer"
+        <a 
+          href={isPaid ? "#" : `/ad-gateway?url=${encodeURIComponent(pdf.googleDriveLink)}`}
+          onClick={handleClick}
           className="block"
         >
           <div className={cn("flex items-center p-3 rounded-lg hover:shadow-md transition-all duration-200", `bg-gradient-to-r ${gradientClass}`)}>
@@ -59,7 +64,7 @@ function PdfItem({ pdf, index }: { pdf: Pdf; index: number }) {
               <p className="text-xs text-muted-foreground">{pdf.description}</p>
             </div>
           </div>
-        </Link>
+        </a>
     )
 }
 
@@ -88,8 +93,18 @@ function PaperItem({ paper, openAccordion, setOpenAccordion }: { paper: Paper; o
           ) : (
              <Tabs defaultValue={paper.tabs[0].id} className="w-full">
                 <TabsList className="m-2">
-                    {paper.tabs.map(tab => (
-                        <TabsTrigger key={tab.id} value={tab.id}>{tab.name}</TabsTrigger>
+                    {paper.tabs.map((tab, index) => (
+                        <TabsTrigger 
+                           key={tab.id} 
+                           value={tab.id}
+                           className="data-[state=active]:shadow-md data-[state=active]:text-white"
+                           style={{
+                             // A simple way to add some color variety to tabs
+                             '--active-bg': `var(--chart-${(index % 5) + 1})` 
+                           } as React.CSSProperties}
+                        >
+                          {tab.name}
+                        </TabsTrigger>
                     ))}
                 </TabsList>
                 {paper.tabs.map(tab => (
@@ -212,11 +227,19 @@ export default function HomePage() {
       setOpenAccordion("");
     }
   }, [searchTerm, filteredPapers, papers]);
-
+  
+  const paperGradients = [
+    'from-blue-500 to-indigo-600',
+    'from-purple-500 to-pink-600',
+    'from-green-500 to-teal-600',
+    'from-orange-500 to-red-600',
+    'from-cyan-500 to-light-blue-600',
+    'from-rose-500 to-fuchsia-600',
+  ];
 
   return (
     <AppLayout>
-      <main className="flex-1 flex flex-col bg-gradient-to-b from-yellow-100 via-red-100 to-orange-100 dark:from-yellow-900/10 dark:via-red-900/10 dark:to-orange-900/10">
+      <main className="flex-1 flex flex-col bg-muted/30">
         <div className="p-6">
             <div className="relative">
                 <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
@@ -238,15 +261,7 @@ export default function HomePage() {
            )}
           <Accordion type="single" collapsible className="w-full space-y-4" value={openAccordion} onValueChange={setOpenAccordion}>
             {filteredPapers.map((paper, index) => {
-              const gradients = [
-                'from-blue-500 to-indigo-600',
-                'from-purple-500 to-pink-600',
-                'from-green-500 to-teal-600',
-                'from-orange-500 to-red-600',
-                'from-cyan-500 to-light-blue-600',
-                'from-rose-500 to-fuchsia-600',
-              ];
-              const paperWithGradient = { ...paper, gradient: gradients[index % gradients.length]};
+              const paperWithGradient = { ...paper, gradient: paperGradients[index % paperGradients.length]};
               return <PaperItem key={paper.id} paper={paperWithGradient} openAccordion={openAccordion} setOpenAccordion={setOpenAccordion} />
             })}
           </Accordion>

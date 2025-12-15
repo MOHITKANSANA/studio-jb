@@ -409,42 +409,15 @@ function AdminDashboard() {
 }
 
 export default function AdminPage() {
-  const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    async function checkAdminStatus() {
-      if (user) {
-        const adminDocRef = doc(firestore, "roles_admin", user.uid);
-        const docSnap = await getDoc(adminDocRef);
-        setIsAdmin(docSnap.exists());
-      } else {
-        setIsAdmin(false);
-      }
-    }
-    checkAdminStatus();
-  }, [user, firestore]);
-  
-  if (isUserLoading || isAdmin === null) {
     return (
-      <AppLayout>
-        <div className="flex-1 bg-muted flex items-center justify-center">
-          <LoaderCircle className="w-10 h-10 animate-spin text-primary" />
-        </div>
-      </AppLayout>
+        <AppLayout>
+          <main className="flex-1 overflow-y-auto">
+            <AdminGate>
+              <AdminDashboard />
+            </AdminGate>
+          </main>
+        </AppLayout>
     );
-  }
-
-  return (
-    <AppLayout>
-      <main className="flex-1 overflow-y-auto">
-        <AdminGate>
-          <AdminDashboard />
-        </AdminGate>
-      </main>
-    </AppLayout>
-  );
 }
 
     
