@@ -50,7 +50,6 @@ import { Button } from "@/components/ui/button";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { cn } from "@/lib/utils";
 import type { User as AppUser } from '@/lib/types';
-import { SheetTitle } from "./ui/sheet";
 
 
 const menuItems = [
@@ -277,7 +276,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <SidebarProvider>
         <div className="flex min-h-screen w-full">
           <Sidebar collapsible="offcanvas" className="w-72">
-            <SheetTitle className="sr-only">मुख्य मेन्यू</SheetTitle>
             <AppSidebar />
           </Sidebar>
           <div className="flex flex-col flex-1">
