@@ -80,7 +80,7 @@ function PaperItem({ paper, openAccordion, setOpenAccordion }: { paper: Paper; o
       <Card className="overflow-hidden shadow-md border-0 transition-all duration-300 ease-in-out hover:shadow-xl">
         <AccordionTrigger 
           onClick={handleTriggerClick}
-          className={cn("p-4 text-white text-left hover:no-underline", paper.gradient)}
+          className={cn("p-4 text-white text-left hover:no-underline bg-gradient-to-r", paper.gradient)}
         >
           <div className="flex-1">
             <h3 className="font-headline text-xl font-bold">{paper.name}</h3>
@@ -233,6 +233,11 @@ export default function HomePage() {
     'from-rose-500 to-fuchsia-600',
   ];
 
+  const papersWithGradients = filteredPapers.map((paper, index) => ({
+    ...paper,
+    gradient: paperGradients[index % paperGradients.length],
+  }));
+
   return (
     <AppLayout>
       <main className="flex-1 flex flex-col bg-background">
@@ -250,19 +255,19 @@ export default function HomePage() {
 
         <div className="flex-1 p-4 sm:p-6 pt-0 overflow-y-auto">
            {loading && <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin text-primary" /></div>}
-           {!loading && filteredPapers.length === 0 && (
+           {!loading && papersWithGradients.length === 0 && (
              <p className="text-center text-muted-foreground p-8">
                {searchTerm ? `"${searchTerm}" के लिए कोई परिणाम नहीं मिला।` : "अभी कोई पेपर उपलब्ध नहीं है। कृपया बाद में जांचें।"}
              </p>
            )}
           <Accordion type="single" collapsible className="w-full space-y-4" value={openAccordion} onValueChange={setOpenAccordion}>
-            {filteredPapers.map((paper, index) => {
-              const paperWithGradient = { ...paper, gradient: paperGradients[index % paperGradients.length]};
-              return <PaperItem key={paper.id} paper={paperWithGradient} openAccordion={openAccordion} setOpenAccordion={setOpenAccordion} />
-            })}
+            {papersWithGradients.map((paper) => (
+              <PaperItem key={paper.id} paper={paper} openAccordion={openAccordion} setOpenAccordion={setOpenAccordion} />
+            ))}
           </Accordion>
         </div>
       </main>
     </AppLayout>
   );
 }
+
