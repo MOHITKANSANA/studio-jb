@@ -13,10 +13,11 @@
  * - /papers/{paperId}: Public collection of subjects.
  * - /papers/{paperId}/tabs/{tabId}: Public collection of tabs/chapters within a paper.
  * - /papers/{paperId}/tabs/{tabId}/pdfDocuments/{pdfDocumentId}: Public collection of PDFs within a tab.
+ * - /combos/{comboId}: Public collection of PDF combos.
  *
  * Key Security Decisions:
  * - Admin-Only Content Management: All creation, modification, and deletion of public content
- *   (Papers, Tabs, PdfDocuments) is restricted to users with the Admin role.
+ *   (Papers, Tabs, PdfDocuments, Combos) is restricted to users with the Admin role.
  * - Strict User Data Privacy: A user's profile data in `/users/{userId}` is private.
  * - Public Read Access: All educational content is publicly readable.
  * - Default Deny: Access is denied by default. All permissions must be explicitly granted.
@@ -93,6 +94,14 @@ service cloud.firestore {
       allow create: if isAdmin() && request.resource.data.paperId == paperId && request.resource.data.tabId == tabId;
       allow update: if isAdmin() && documentExists() && request.resource.data.paperId == resource.data.paperId && request.resource.data.tabId == resource.data.tabId;
       allow delete: if isAdmin() && documentExists();
+    }
+
+    // --------------------------------------------------------------------
+    // Combos (/combos/{comboId})
+    // --------------------------------------------------------------------
+    match /combos/{comboId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
     }
   }
 }

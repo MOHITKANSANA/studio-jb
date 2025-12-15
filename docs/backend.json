@@ -160,6 +160,43 @@
         "paperId",
         "accessType"
       ]
+    },
+    "Combo": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Combo",
+      "type": "object",
+      "description": "Represents a purchasable or free combo of multiple PDF documents.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Combo entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the PDF combo."
+        },
+        "description": {
+          "type": "string",
+          "description": "A short description of the combo."
+        },
+        "accessType": {
+          "type": "string",
+          "enum": ["Free", "Paid"],
+          "description": "The access type of the combo."
+        },
+        "price": {
+          "type": "number",
+          "description": "The price of the combo if it is 'Paid'."
+        },
+        "pdfIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "An array of PdfDocument IDs included in this combo."
+        }
+      },
+      "required": ["id", "name", "description", "accessType", "pdfIds"]
     }
   },
   "auth": {
@@ -218,6 +255,16 @@
             "$ref": "#/backend/entities/PdfDocument"
           },
           "description": "Stores PDF documents associated with a specific tab within a paper."
+        }
+      },
+      {
+        "path": "/combos/{comboId}",
+        "definition": {
+          "entityName": "Combo",
+          "schema": {
+            "$ref": "#/backend/entities/Combo"
+          },
+          "description": "Stores PDF combo packages that can be free or paid."
         }
       }
     ]

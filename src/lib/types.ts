@@ -31,3 +31,13 @@ export type User = {
   mobileNumber?: string;
   role: 'student' | 'admin';
 };
+
+export type Combo = {
+  id: string;
+  name: string;
+  description: string;
+  accessType: 'Free' | 'Paid';
+  price?: number;
+  pdfIds: string[];
+  pdfs?: Pdf[]; // Populated on the client
+};

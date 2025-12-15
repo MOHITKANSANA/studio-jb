@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { cn } from '@/lib/utils';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'कृपया एक मान्य ईमेल दर्ज करें।' }),
@@ -57,18 +58,20 @@ export default function LoginPage() {
 
   if (isUserLoading || user) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-yellow-400 via-red-500 to-orange-600">
-        <LoaderCircle className="h-12 w-12 animate-spin text-white" />
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <LoaderCircle className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
   
   return (
-    <main className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-yellow-400 via-red-500 to-orange-600 p-4">
+    <main className="flex min-h-screen w-full items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
-        <div className="flex flex-col items-center mb-8 text-white text-center">
-          <BookOpenCheck className="w-16 h-16 mb-4" />
-          <h1 className="font-headline text-3xl font-bold">Smart Study MPSE में आपका स्वागत है</h1>
+        <div className="flex flex-col items-center mb-8 text-foreground text-center">
+          <div className="mb-4 p-4 rounded-2xl bg-gradient-to-br from-primary via-accent to-primary/50">
+            <BookOpenCheck className="w-16 h-16 text-white" />
+          </div>
+          <h1 className="font-headline text-3xl font-bold gradient-text">Smart Study MPSE में आपका स्वागत है</h1>
         </div>
         <AuthForm />
       </div>
@@ -166,13 +169,11 @@ function AuthForm() {
         email: values.email,
         role: values.role,
       };
-      // This is a non-blocking write.
       setDocumentNonBlocking(userRef, userData, { merge: true });
 
       if (values.role === 'admin') {
         const adminRef = doc(firestore, "roles_admin", user.uid);
         const adminData = { userId: user.uid, adminCode: 'Smartjsram' };
-        // This is also non-blocking
         setDocumentNonBlocking(adminRef, adminData, { merge: true });
       }
 
@@ -180,9 +181,6 @@ function AuthForm() {
         title: 'अकाउंट सफलतापूर्वक बन गया!',
         description: 'होमपेज पर रीडायरेक्ट किया जा रहा है...',
       });
-      
-      // The onAuthStateChanged listener in the provider will handle redirection
-      // but we can push here for a faster perceived navigation.
       router.push('/home');
 
     } catch (error: any) {
@@ -212,11 +210,11 @@ function AuthForm() {
   return (
      <>
      <Tabs defaultValue="login" className="w-full">
-      <TabsList className="grid w-full grid-cols-2 bg-black/20 border border-white/20 h-12 p-1">
-        <TabsTrigger value="login" className="data-[state=active]:bg-white/20 data-[state=active]:text-white text-white/80 h-full">लॉगिन</TabsTrigger>
-        <TabsTrigger value="signup" className="data-[state=active]:bg-white/20 data-[state=active]:text-white text-white/80 h-full">साइन-अप</TabsTrigger>
+      <TabsList className="grid w-full grid-cols-2 bg-card border border-border h-12 p-1">
+        <TabsTrigger value="login" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-foreground/80 h-full">लॉगिन</TabsTrigger>
+        <TabsTrigger value="signup" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-foreground/80 h-full">साइन-अप</TabsTrigger>
       </TabsList>
-      <div className="glass-card mt-4 p-6 sm:p-8">
+      <div className="glass-card mt-4 p-6 sm:p-8 !bg-card border border-border">
         <TabsContent value="login">
           <Form {...loginForm}>
             <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-6">
@@ -225,11 +223,11 @@ function AuthForm() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">ईमेल</FormLabel>
+                    <FormLabel>ईमेल</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/50" />
-                        <Input placeholder="आपका ईमेल" {...field} className="bg-black/20 border-white/30 text-white pl-10 h-12"/>
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input placeholder="आपका ईमेल" {...field} className="pl-10 h-12"/>
                       </div>
                     </FormControl>
                     <FormMessage />
@@ -241,12 +239,12 @@ function AuthForm() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-white/80">पासवर्ड</FormLabel>
+                    <FormLabel>पासवर्ड</FormLabel>
                     <FormControl>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/50" />
-                        <Input type={showPassword ? 'text' : 'password'} placeholder="आपका पासवर्ड" {...field} className="bg-black/20 border-white/30 text-white pl-10 h-12"/>
-                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/50">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input type={showPassword ? 'text' : 'password'} placeholder="आपका पासवर्ड" {...field} className="pl-10 h-12"/>
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground">
                           {showPassword ? <EyeOff /> : <Eye />}
                         </button>
                       </div>
@@ -255,11 +253,11 @@ function AuthForm() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full h-12 text-lg font-bold gradient-button transition-transform active:scale-[0.98]" disabled={isLoading}>
+              <Button type="submit" className="w-full h-12 text-lg font-bold bg-primary hover:bg-primary/90 transition-transform active:scale-[0.98]" disabled={isLoading}>
                  {isLoading ? <LoaderCircle className="animate-spin" /> : 'लॉगिन करें'}
               </Button>
               <div className="text-center">
-                <button type="button" onClick={() => setForgotPasswordOpen(true)} className="text-sm text-white/70 hover:text-white hover:underline">पासवर्ड भूल गए?</button>
+                <button type="button" onClick={() => setForgotPasswordOpen(true)} className="text-sm text-muted-foreground hover:text-foreground hover:underline">पासवर्ड भूल गए?</button>
               </div>
             </form>
           </Form>
@@ -268,21 +266,21 @@ function AuthForm() {
            <Form {...signupForm}>
             <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-4">
               <FormField control={signupForm.control} name="fullName" render={({ field }) => (
-                  <FormItem><FormControl><div className="relative"><User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/50" /><Input placeholder="पूरा नाम" {...field} className="bg-black/20 border-white/30 text-white pl-10 h-12"/></div></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormControl><div className="relative"><User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" /><Input placeholder="पूरा नाम" {...field} className="pl-10 h-12"/></div></FormControl><FormMessage /></FormItem>
                 )}/>
               <FormField control={signupForm.control} name="email" render={({ field }) => (
-                  <FormItem><FormControl><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/50" /><Input placeholder="ईमेल" {...field} className="bg-black/20 border-white/30 text-white pl-10 h-12"/></div></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormControl><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" /><Input placeholder="ईमेल" {...field} className="pl-10 h-12"/></div></FormControl><FormMessage /></FormItem>
                 )}/>
               <FormField control={signupForm.control} name="password" render={({ field }) => (
-                  <FormItem><FormControl><div className="relative"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/50" /><Input type={showPassword ? 'text' : 'password'} placeholder="पासवर्ड" {...field} className="bg-black/20 border-white/30 text-white pl-10 h-12"/><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/50">{showPassword ? <EyeOff /> : <Eye />}</button></div></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormControl><div className="relative"><Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" /><Input type={showPassword ? 'text' : 'password'} placeholder="पासवर्ड" {...field} className="pl-10 h-12"/><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground">{showPassword ? <EyeOff /> : <Eye />}</button></div></FormControl><FormMessage /></FormItem>
                 )}/>
               <FormField control={signupForm.control} name="role" render={({ field }) => (
                   <FormItem><FormControl>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                       <SelectTrigger className="bg-black/20 border-white/30 text-white h-12">
+                       <SelectTrigger className="h-12">
                         <SelectValue placeholder="रोल चुनें" />
                       </SelectTrigger>
-                      <SelectContent className="bg-gray-800 text-white border-white/30">
+                      <SelectContent>
                         <SelectItem value="student">विद्यार्थी</SelectItem>
                         <SelectItem value="admin">एडमिन</SelectItem>
                       </SelectContent>
@@ -291,11 +289,11 @@ function AuthForm() {
                 )}/>
               {selectedRole === 'admin' && (
                 <FormField control={signupForm.control} name="adminCode" render={({ field }) => (
-                  <FormItem><FormControl><div className="relative"><KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/50" /><Input placeholder="सीक्रेट एडमिन कोड" {...field} className="bg-black/20 border-white/30 text-white pl-10 h-12"/></div></FormControl><FormMessage /></FormItem>
+                  <FormItem><FormControl><div className="relative"><KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" /><Input placeholder="सीक्रेट एडमिन कोड" {...field} className="pl-10 h-12"/></div></FormControl><FormMessage /></FormItem>
                 )}/>
               )}
 
-              <Button type="submit" className="w-full h-12 text-lg font-bold gradient-button transition-transform active:scale-[0.98]" disabled={isLoading}>
+              <Button type="submit" className="w-full h-12 text-lg font-bold bg-primary hover:bg-primary/90 transition-transform active:scale-[0.98]" disabled={isLoading}>
                  {isLoading ? <LoaderCircle className="animate-spin" /> : 'अकाउंट बनाएं'}
               </Button>
             </form>
@@ -330,7 +328,7 @@ function AuthForm() {
                         <DialogClose asChild>
                             <Button type="button" variant="secondary" disabled={isLoading}>रद्द करें</Button>
                         </DialogClose>
-                        <Button type="submit" className="gradient-button" disabled={isLoading}>
+                        <Button type="submit" className="bg-primary hover:bg-primary/90" disabled={isLoading}>
                             {isLoading ? <LoaderCircle className="animate-spin" /> : 'रीसेट लिंक भेजें'}
                         </Button>
                     </DialogFooter>
@@ -341,5 +339,3 @@ function AuthForm() {
     </>
   );
 }
-
-    

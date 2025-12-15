@@ -4,16 +4,16 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock, File as FileIcon, Search as SearchIcon, LoaderCircle } from "lucide-react";
+import { Lock, Unlock, File as FileIcon, Search as SearchIcon, LoaderCircle } from "lucide-react";
 import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { AppLayout } from "@/components/app-layout";
 import { Input } from "@/components/ui/input";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import type { Paper, PdfDocument as Pdf, Tab } from "@/lib/types";
+import type { Paper, PdfDocument as Pdf, Tab, Combo } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
 const pdfGradients = [
@@ -23,6 +23,14 @@ const pdfGradients = [
     'from-amber-200 to-yellow-200 dark:from-amber-900/70 dark:to-yellow-900/70',
     'from-rose-200 to-red-200 dark:from-rose-900/70 dark:to-red-900/70',
     'from-violet-200 to-indigo-200 dark:from-violet-900/70 dark:to-indigo-900/70',
+];
+
+const tabGradients = [
+  "dark:bg-blue-900/50 bg-blue-100 data-[state=active]:bg-blue-600",
+  "dark:bg-purple-900/50 bg-purple-100 data-[state=active]:bg-purple-600",
+  "dark:bg-green-900/50 bg-green-100 data-[state=active]:bg-green-600",
+  "dark:bg-pink-900/50 bg-pink-100 data-[state=active]:bg-pink-600",
+  "dark:bg-orange-900/50 bg-orange-100 data-[state=active]:bg-orange-600",
 ];
 
 function PdfItem({ pdf, index }: { pdf: Pdf; index: number }) {
@@ -40,23 +48,23 @@ function PdfItem({ pdf, index }: { pdf: Pdf; index: number }) {
                 title: `"${pdf.name}" एक पेड PDF है`,
                 description: "यह PDF पेड है, खरीदने के लिए आगे बढ़ें।",
             });
+            // Future: router.push(`/payment?pdfId=${pdf.id}`);
         } else {
-            // Navigate to the ad gateway before showing the PDF
             router.push(`/ad-gateway?url=${encodeURIComponent(pdf.googleDriveLink)}`);
         }
     }
 
     return (
         <a 
-          href={isPaid ? "#" : `/ad-gateway?url=${encodeURIComponent(pdf.googleDriveLink)}`}
+          href="#"
           onClick={handleClick}
           className="block"
         >
           <div className={cn("flex items-center p-3 rounded-lg hover:shadow-md transition-all duration-200", `bg-gradient-to-r ${gradientClass}`)}>
-            <div className={cn("p-2 rounded-md mr-4", isPaid ? 'bg-amber-500/20' : 'bg-primary/20')}>
+            <div className={cn("p-2 rounded-md mr-4", isPaid ? 'bg-amber-500/20' : 'bg-green-500/20')}>
               {isPaid 
-                ? <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                : <FileIcon className="h-5 w-5 text-primary" />
+                ? <Lock className="h-5 w-5 text-amber-500 dark:text-amber-400" />
+                : <Unlock className="h-5 w-5 text-green-600 dark:text-green-400" />
               }
             </div>
             <div className="flex-1">
@@ -92,12 +100,15 @@ function PaperItem({ paper, openAccordion, setOpenAccordion }: { paper: Paper; o
             <p className="text-center text-muted-foreground p-4">इस पेपर के लिए अभी कोई टैब उपलब्ध नहीं है।</p>
           ) : (
              <Tabs defaultValue={paper.tabs[0].id} className="w-full">
-                <TabsList className="m-2">
+                <TabsList className="m-2 grid grid-cols-2 sm:grid-cols-3 gap-2 bg-transparent p-0">
                     {paper.tabs.map((tab, index) => (
                         <TabsTrigger 
                            key={tab.id} 
                            value={tab.id}
-                           className="data-[state=active]:shadow-md data-[state=active]:text-white"
+                           className={cn(
+                            "data-[state=active]:shadow-lg data-[state=active]:text-white data-[state=active]:scale-105 transition-transform",
+                            tabGradients[index % tabGradients.length]
+                           )}
                         >
                           {tab.name}
                         </TabsTrigger>
@@ -166,12 +177,69 @@ function usePapersWithContent() {
     return { papers, loading: papersLoading || loading, refetch: () => initialPapers && fetchContent(initialPapers) };
 }
 
+function ComboItem({ combo, index }: { combo: Combo; index: number }) {
+    const { toast } = useToast();
+    const router = useRouter();
+    const isPaid = combo.accessType === 'Paid';
+
+    const comboGradients = [
+        'from-blue-400 to-indigo-500',
+        'from-yellow-400 to-amber-500',
+        'from-green-400 to-teal-500',
+        'from-pink-400 to-rose-500',
+    ];
+    const gradientClass = comboGradients[index % comboGradients.length];
+
+    const handleClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        if (isPaid) {
+            toast({
+                variant: "destructive",
+                title: `"${combo.name}" एक पेड कॉम्बो है`,
+                description: `कीमत: ₹${combo.price || 0}. खरीदने के लिए आगे बढ़ें।`,
+            });
+            // Future: router.push(`/payment?comboId=${combo.id}`);
+        } else {
+            toast({
+                title: "कॉम्बो खोला जा रहा है",
+                description: "आप जल्द ही इस कॉम्बो के सभी PDFs को एक्सेस कर पाएंगे।",
+            });
+            // Future: redirect to a combo detail page
+        }
+    };
+
+    return (
+        <a href="#" onClick={handleClick} className="block">
+            <Card className={cn("text-white border-0 shadow-lg hover:shadow-xl transition-shadow", gradientClass)}>
+                <CardHeader>
+                    <div className="flex justify-between items-start">
+                        <CardTitle className="text-lg font-bold">{combo.name}</CardTitle>
+                        {isPaid 
+                            ? <Lock className="h-5 w-5 text-white/80" />
+                            : <Unlock className="h-5 w-5 text-white/80" />
+                        }
+                    </div>
+                    <CardDescription className="text-white/80 text-xs">{combo.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isPaid && (
+                        <div className="text-xl font-bold">
+                            ₹{combo.price}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </a>
+    );
+}
 
 export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const { papers, loading } = usePapersWithContent();
+  const firestore = useFirestore();
+  const combosQuery = useMemoFirebase(() => query(collection(firestore, "combos"), orderBy("name")), [firestore]);
+  const { data: combos, isLoading: combosLoading } = useCollection<Combo>(combosQuery);
   const [openAccordion, setOpenAccordion] = useState<string>("");
-
 
   const filteredPapers = useMemo(() => {
     if (!papers) return [];
@@ -180,22 +248,17 @@ export default function HomePage() {
     const lowercasedFilter = searchTerm.toLowerCase();
 
     return papers.map(paper => {
-        // If paper name matches, return it with all its content
         if (paper.name.toLowerCase().includes(lowercasedFilter) || paper.description.toLowerCase().includes(lowercasedFilter)) {
             return paper;
         }
-
-        // Otherwise, filter tabs and pdfs
         const filteredTabs = paper.tabs?.map(tab => {
             if (tab.name.toLowerCase().includes(lowercasedFilter)) {
                 return tab;
             }
-
             const matchingPdfs = tab.pdfs?.filter(pdf => 
                 pdf.name.toLowerCase().includes(lowercasedFilter) || 
                 pdf.description.toLowerCase().includes(lowercasedFilter)
             );
-            
             if (matchingPdfs && matchingPdfs.length > 0) {
                 return { ...tab, pdfs: matchingPdfs };
             }
@@ -205,24 +268,18 @@ export default function HomePage() {
         if (filteredTabs && filteredTabs.length > 0) {
             return { ...paper, tabs: filteredTabs };
         }
-
         return null;
     }).filter((p): p is Paper => p !== null);
 
   }, [searchTerm, papers]);
 
   useEffect(() => {
-    // Open the first search result automatically
     if (searchTerm && filteredPapers.length > 0) {
       setOpenAccordion(filteredPapers[0].id);
-    } else if (!searchTerm && papers.length > 0) {
-      // Optionally open the first paper by default
-      // setOpenAccordion(papers[0].id);
-    }
-     else {
+    } else {
       setOpenAccordion("");
     }
-  }, [searchTerm, filteredPapers, papers]);
+  }, [searchTerm, filteredPapers]);
   
   const paperGradients = [
     'from-blue-500 to-indigo-600',
@@ -255,19 +312,31 @@ export default function HomePage() {
 
         <div className="flex-1 p-4 sm:p-6 pt-0 overflow-y-auto">
            {loading && <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin text-primary" /></div>}
-           {!loading && papersWithGradients.length === 0 && (
+           
+           {!loading && papersWithGradients.length === 0 && !combosLoading && (!combos || combos.length === 0) && (
              <p className="text-center text-muted-foreground p-8">
-               {searchTerm ? `"${searchTerm}" के लिए कोई परिणाम नहीं मिला।` : "अभी कोई पेपर उपलब्ध नहीं है। कृपया बाद में जांचें।"}
+               {searchTerm ? `"${searchTerm}" के लिए कोई परिणाम नहीं मिला।` : "अभी कोई कंटेंट उपलब्ध नहीं है। कृपया बाद में जांचें।"}
              </p>
            )}
+
           <Accordion type="single" collapsible className="w-full space-y-4" value={openAccordion} onValueChange={setOpenAccordion}>
             {papersWithGradients.map((paper) => (
               <PaperItem key={paper.id} paper={paper} openAccordion={openAccordion} setOpenAccordion={setOpenAccordion} />
             ))}
           </Accordion>
+
+          {combos && combos.length > 0 && (
+            <div className="mt-8">
+                <h2 className="text-2xl font-headline font-bold mb-4 gradient-text">Important PDF Combos</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {combos.map((combo, index) => (
+                        <ComboItem key={combo.id} combo={combo} index={index} />
+                    ))}
+                </div>
+            </div>
+          )}
         </div>
       </main>
     </AppLayout>
   );
 }
-
