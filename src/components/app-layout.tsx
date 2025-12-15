@@ -16,6 +16,7 @@ import {
   BookCopy,
   Sun,
   Moon,
+  User as UserIcon,
 } from "lucide-react";
 import { useUser, useAuth, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
 import { doc } from 'firebase/firestore';
@@ -55,15 +56,35 @@ import type { User as AppUser } from '@/lib/types';
 const menuItems = [
   { icon: Home, label: "होम", href: "/home" },
   { icon: BookCopy, label: "विषय", href: "/home" },
-  { icon: Settings, label: "सेटिंग्स", href: "#" },
 ];
+
+const bottomMenuItems = [
+    { icon: Settings, label: "सेटिंग्स", href: "#" },
+    { icon: UserIcon, label: "प्रोफाइल", href: "#" }
+]
 
 const adminItems = [
   { icon: Shield, label: "एडमिन पैनल", href: "/admin" },
 ];
 
+// Helper function to generate a color from a string (e.g., user ID)
+const generateColorFromString = (str: string) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const c = (hash & 0x00FFFFFF)
+        .toString(16)
+        .toUpperCase();
+
+    const color = "00000".substring(0, 6 - c.length) + c;
+    return `#${color}`;
+};
+
+
 function ThemeToggleButton() {
     const { theme, setTheme } = useTheme();
+    const { setOpenMobile } = useSidebar();
     const [mounted, setMounted] = React.useState(false);
 
     React.useEffect(() => setMounted(true), []);
@@ -75,7 +96,10 @@ function ThemeToggleButton() {
     const isDark = theme === 'dark';
 
     return (
-        <SidebarMenuButton onClick={() => setTheme(isDark ? 'light' : 'dark')}>
+        <SidebarMenuButton onClick={() => {
+            setTheme(isDark ? 'light' : 'dark');
+            setOpenMobile(false);
+        }}>
             {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             <span>{isDark ? 'लाइट मोड' : 'डार्क मोड'}</span>
         </SidebarMenuButton>
@@ -88,6 +112,7 @@ function AppSidebar() {
   const auth = useAuth();
   const router = useRouter();
   const firestore = useFirestore();
+  const { setOpenMobile } = useSidebar();
 
   const userDocRef = useMemoFirebase(() => {
       if (!user) return null;
@@ -107,18 +132,25 @@ function AppSidebar() {
   const userRole = appUser?.role;
   const userInitial = (appUser?.fullName || user?.email || "U").charAt(0).toUpperCase();
 
+  const avatarBgColor = React.useMemo(() => user ? generateColorFromString(user.uid) : '#cccccc', [user]);
+
+  const handleMenuItemClick = () => {
+    setOpenMobile(false);
+  }
 
   return (
     <div className="bg-gradient-to-b from-blue-900 via-purple-900 to-teal-900 h-full flex flex-col">
       <SidebarHeader className="p-4 border-b border-white/10">
         <div className="flex items-center gap-4">
           <Avatar className="h-12 w-12 border-2 border-white/50">
-            {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt={userName} data-ai-hint={userAvatar.imageHint}/>}
-            <AvatarFallback className="bg-gradient-to-br from-yellow-400 via-red-500 to-orange-600 text-white font-bold">{userInitial}</AvatarFallback>
+            {userAvatar && false ? <AvatarImage src={userAvatar.imageUrl} alt={userName} data-ai-hint={userAvatar.imageHint}/> : null}
+            <AvatarFallback style={{ backgroundColor: avatarBgColor }} className="text-white font-bold text-lg">
+                {userInitial}
+            </AvatarFallback>
           </Avatar>
           <div className="text-white">
             <p className="font-semibold">{userName}</p>
-            <p className="text-xs text-white/70">MPSE / State Exam</p>
+            <p className="text-xs text-white/70">{userRole === 'admin' ? 'एडमिनिस्ट्रेटर' : 'MPSE / State Exam'}</p>
           </div>
         </div>
       </SidebarHeader>
@@ -127,7 +159,7 @@ function AppSidebar() {
         <SidebarMenu>
           {menuItems.map((item) => (
             <SidebarMenuItem key={item.label}>
-              <Link href={item.href} className="w-full">
+              <Link href={item.href} className="w-full" onClick={handleMenuItemClick}>
                 <SidebarMenuButton
                   className="text-sidebar-foreground hover:bg-white/10 hover:text-white data-[active=true]:bg-white/20 data-[active=true]:text-white"
                   isActive={pathname === item.href}
@@ -148,7 +180,7 @@ function AppSidebar() {
             <SidebarMenu>
               {adminItems.map((item) => (
                 <SidebarMenuItem key={item.label}>
-                  <Link href={item.href} className="w-full">
+                  <Link href={item.href} className="w-full" onClick={handleMenuItemClick}>
                     <SidebarMenuButton
                       className="text-sidebar-foreground hover:bg-white/10 hover:text-white data-[active=true]:bg-white/20 data-[active=true]:text-white"
                       isActive={pathname === item.href || pathname.startsWith(item.href)}
@@ -166,6 +198,16 @@ function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="p-4 border-t border-white/10 mt-auto">
          <SidebarMenu>
+            {bottomMenuItems.map((item) => (
+                <SidebarMenuItem key={item.label}>
+                    <Link href={item.href} className="w-full" onClick={handleMenuItemClick}>
+                        <SidebarMenuButton className="text-sidebar-foreground hover:bg-white/10 hover:text-white">
+                            <item.icon className="w-5 h-5" />
+                            <span>{item.label}</span>
+                        </SidebarMenuButton>
+                    </Link>
+                </SidebarMenuItem>
+            ))}
             <SidebarMenuItem>
               <ThemeToggleButton />
             </SidebarMenuItem>
@@ -191,7 +233,15 @@ function TopBar() {
   const { user } = useUser();
   const auth = useAuth();
   const router = useRouter();
+  const firestore = useFirestore();
 
+  const userDocRef = useMemoFirebase(() => {
+      if (!user) return null;
+      return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
+
+  const { data: appUser } = useDoc<AppUser>(userDocRef);
+  
   const handleLogout = async () => {
     localStorage.removeItem("admin_verified");
     await auth.signOut();
@@ -199,8 +249,10 @@ function TopBar() {
   };
 
   const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar-1');
-  const userName = user?.displayName || user?.email || "User";
-  const userInitial = (user?.displayName || user?.email || "U").charAt(0).toUpperCase();
+  const userName = appUser?.fullName || user?.email || "User";
+  const userInitial = (appUser?.fullName || user?.email || "U").charAt(0).toUpperCase();
+
+  const avatarBgColor = React.useMemo(() => user ? generateColorFromString(user.uid) : '#cccccc', [user]);
   
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-4 md:px-6">
@@ -213,8 +265,10 @@ function TopBar() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
             <Avatar className="h-10 w-10">
-              {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt={userName} data-ai-hint={userAvatar.imageHint}/>}
-              <AvatarFallback className="bg-gradient-to-br from-yellow-400 via-red-500 to-orange-600 text-white font-bold">{userInitial}</AvatarFallback>
+               {userAvatar && false ? <AvatarImage src={userAvatar.imageUrl} alt={userName} data-ai-hint={userAvatar.imageHint}/> : null}
+                <AvatarFallback style={{ backgroundColor: avatarBgColor }} className="text-white font-bold text-lg">
+                    {userInitial}
+                </AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
@@ -222,9 +276,9 @@ function TopBar() {
           <DropdownMenuLabel>मेरा अकाउंट</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem>सेटिंग्स</DropdownMenuItem>
-          <DropdownMenuItem>सपोर्ट</DropdownMenuItem>
+          <DropdownMenuItem>प्रोफाइल</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleLogout} className="text-red-500">लॉगआउट</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500 focus:bg-red-500/10">लॉगआउट</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </header>

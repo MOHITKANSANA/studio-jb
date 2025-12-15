@@ -15,9 +15,18 @@ import { cn } from "@/lib/utils";
 import type { Paper, Pdf, Tab } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
-function PdfItem({ pdf }: { pdf: Pdf }) {
+function PdfItem({ pdf, index }: { pdf: Pdf; index: number }) {
     const { toast } = useToast();
     const isPaid = pdf.accessType === 'Paid';
+    
+    const gradients = [
+        'from-sky-200 to-blue-200 dark:from-sky-900/70 dark:to-blue-900/70',
+        'from-fuchsia-200 to-purple-200 dark:from-fuchsia-900/70 dark:to-purple-900/70',
+        'from-emerald-200 to-green-200 dark:from-emerald-900/70 dark:to-green-900/70',
+        'from-amber-200 to-yellow-200 dark:from-amber-900/70 dark:to-yellow-900/70',
+    ];
+    const gradientClass = gradients[index % gradients.length];
+
 
     const handlePaidPdfClick = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -36,10 +45,10 @@ function PdfItem({ pdf }: { pdf: Pdf }) {
           rel="noopener noreferrer"
           className="block"
         >
-          <div className="flex items-center p-3 rounded-lg hover:bg-muted transition-colors">
-            <div className={cn("p-2 rounded-md mr-4", isPaid ? 'bg-amber-500/10' : 'bg-primary/10')}>
+          <div className={cn("flex items-center p-3 rounded-lg hover:shadow-md transition-all duration-200", `bg-gradient-to-r ${gradientClass}`)}>
+            <div className={cn("p-2 rounded-md mr-4", isPaid ? 'bg-amber-500/20' : 'bg-primary/20')}>
               {isPaid 
-                ? <Lock className="h-5 w-5 text-amber-500" />
+                ? <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                 : <FileIcon className="h-5 w-5 text-primary" />
               }
             </div>
@@ -85,7 +94,7 @@ function PaperItem({ paper, openAccordion, setOpenAccordion }: { paper: Paper; o
                      <TabsContent key={tab.id} value={tab.id} className="p-2">
                         {tab.pdfs && tab.pdfs.length > 0 ? (
                              <div className="space-y-2">
-                                {tab.pdfs.map(pdf => <PdfItem key={pdf.id} pdf={pdf} />)}
+                                {tab.pdfs.map((pdf, index) => <PdfItem key={pdf.id} pdf={pdf} index={index} />)}
                             </div>
                         ) : (
                             <p className="text-center text-muted-foreground p-4">इस टैब में कोई PDF नहीं है।</p>
