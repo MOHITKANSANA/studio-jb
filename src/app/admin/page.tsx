@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentsui/select";
 import { FileText, Book, Users, DollarSign, Lock, Unlock, BarChart, PlusCircle, LoaderCircle, Send, Library, FilePlus, FolderPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
@@ -67,57 +67,66 @@ const notificationSchema = z.object({
     imageUrl: z.string().url("कृपया एक मान्य इमेज URL डालें।").optional().or(z.literal('')),
 });
 
-function AdminGate({ onVerified, onNotVerified }: { onVerified: () => void; onNotVerified: () => void; }) {
+function AdminGate({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
-  
-  useEffect(() => {
-    if (isUserLoading) {
+
+  const verifyAdmin = useCallback(async () => {
+    if (!user) {
+      setIsVerifying(false);
+      setIsAdmin(false);
       return;
     }
-    
-    if (!user) {
-        setIsVerifying(false);
-        onNotVerified();
-        return;
+    setIsVerifying(true);
+    try {
+      const adminRef = doc(firestore, 'roles_admin', user.uid);
+      const docSnap = await getDoc(adminRef);
+      if (docSnap.exists()) {
+        setIsAdmin(true);
+      } else {
+        setIsAdmin(false);
+      }
+    } catch (error) {
+      console.error("Error checking admin status:", error);
+      setIsAdmin(false);
+    } finally {
+      setIsVerifying(false);
     }
+  }, [user, firestore]);
 
-    const checkAdminStatus = async () => {
-        setIsVerifying(true);
-        try {
-            const adminRef = doc(firestore, 'roles_admin', user.uid);
-            const docSnap = await getDoc(adminRef);
-            if (docSnap.exists()) {
-                localStorage.setItem("admin_verified", "true");
-                onVerified();
-            } else {
-                localStorage.removeItem("admin_verified");
-                onNotVerified();
-            }
-        } catch (error) {
-            console.error("Error checking admin status:", error);
-            onNotVerified();
-        } finally {
-            setIsVerifying(false);
-        }
-    };
+  useEffect(() => {
+    if (!isUserLoading) {
+      verifyAdmin();
+    }
+  }, [isUserLoading, verifyAdmin]);
 
-    checkAdminStatus();
-  }, [user, firestore, onVerified, onNotVerified, isUserLoading]);
-
-  if (isVerifying || isUserLoading) {
+  if (isUserLoading || isVerifying) {
     return (
-        <Dialog open={true}>
-            <DialogContent className="flex items-center justify-center">
-                <LoaderCircle className="w-8 h-8 animate-spin mr-2" />
-                <DialogTitle>एडमिन स्थिति की जाँच हो रही है...</DialogTitle>
-            </DialogContent>
-        </Dialog>
+      <Dialog open={true}>
+        <DialogContent className="flex items-center justify-center">
+          <LoaderCircle className="w-8 h-8 animate-spin mr-2" />
+          <DialogTitle>एडमिन स्थिति की जाँच हो रही है...</DialogTitle>
+        </DialogContent>
+      </Dialog>
     );
   }
 
-  return null;
+  if (!isAdmin) {
+    return (
+      <Dialog open={true}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>पहुंच प्रतिबंधित</DialogTitle>
+            <DialogDescription>आप एडमिन नहीं हैं। यह क्षेत्र केवल एडमिन के लिए है।</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return <>{children}</>;
 }
 
 
@@ -374,79 +383,40 @@ function AdminDashboard() {
 }
 
 export default function AdminPage() {
-  const [isVerified, setIsVerified] = useState(false);
   const { user, isUserLoading } = useUser();
-  const [showAccessDenied, setShowAccessDenied] = useState(false);
-
-  useEffect(() => {
-    // If we have a user, check local storage first for a quicker UI update
-    if (user && localStorage.getItem("admin_verified") === "true") {
-      setIsVerified(true);
-    }
-  }, [user]);
-
-  const handleVerification = () => {
-    setIsVerified(true);
-    setShowAccessDenied(false);
-  };
-
-  const handleNotVerified = () => {
-    setIsVerified(false);
-    setShowAccessDenied(true);
-  };
 
   if (isUserLoading) {
-     return (
-        <AppLayout>
-            <div className="flex-1 bg-muted flex items-center justify-center">
-                <LoaderCircle className="w-10 h-10 animate-spin text-primary" />
-            </div>
-        </AppLayout>
-     )
-  }
-  
-  if (!user) {
     return (
       <AppLayout>
-          <Dialog open={true}>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>पहुंच प्रतिबंधित</DialogTitle>
-                <DialogDescription>
-                  इस पेज को देखने के लिए कृपया लॉगिन करें।
-                </DialogDescription>
-              </DialogHeader>
-            </DialogContent>
-          </Dialog>
+        <div className="flex-1 bg-muted flex items-center justify-center">
+          <LoaderCircle className="w-10 h-10 animate-spin text-primary" />
+        </div>
       </AppLayout>
     );
   }
 
-  if (isVerified) {
+  if (!user) {
     return (
       <AppLayout>
-        <main className="flex-1 overflow-y-auto">
-          <AdminDashboard />
-        </main>
+        <Dialog open={true}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>पहुंच प्रतिबंधित</DialogTitle>
+              <DialogDescription>इस पेज को देखने के लिए कृपया लॉगिन करें।</DialogDescription>
+            </DialogHeader>
+          </DialogContent>
+        </Dialog>
       </AppLayout>
     );
   }
 
   return (
     <AppLayout>
-      <div className="flex-1 bg-muted">
-          <AdminGate onVerified={handleVerification} onNotVerified={handleNotVerified} />
-          <Dialog open={showAccessDenied}>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>पहुंच प्रतिबंधित</DialogTitle>
-                <DialogDescription>
-                  आप एडमिन नहीं हैं। यह क्षेत्र केवल एडमिन के लिए है।
-                </DialogDescription>
-              </DialogHeader>
-            </DialogContent>
-          </Dialog>
-      </div>
+      <main className="flex-1 overflow-y-auto">
+        <AdminGate>
+          <AdminDashboard />
+        </AdminGate>
+      </main>
     </AppLayout>
   );
 }

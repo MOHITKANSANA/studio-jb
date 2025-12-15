@@ -103,6 +103,7 @@ function AuthForm() {
   const selectedRole = signupForm.watch('role');
 
   function handleAuthError(error: any, formType: 'login' | 'signup' | 'reset') {
+    setIsLoading(false);
     let title = 'एक त्रुटि हुई';
     let description = 'कुछ गलत हो गया। कृपया दोबारा प्रयास करें।';
 
@@ -340,3 +341,5 @@ function AuthForm() {
     </>
   );
 }
+
+    
