@@ -12,7 +12,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import type { Paper, Pdf, Tab } from "@/lib/types";
+import type { Paper, PdfDocument as Pdf, Tab } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
 function PdfItem({ pdf, index }: { pdf: Pdf; index: number }) {
@@ -24,6 +24,8 @@ function PdfItem({ pdf, index }: { pdf: Pdf; index: number }) {
         'from-fuchsia-200 to-purple-200 dark:from-fuchsia-900/70 dark:to-purple-900/70',
         'from-emerald-200 to-green-200 dark:from-emerald-900/70 dark:to-green-900/70',
         'from-amber-200 to-yellow-200 dark:from-amber-900/70 dark:to-yellow-900/70',
+        'from-rose-200 to-red-200 dark:from-rose-900/70 dark:to-red-900/70',
+        'from-violet-200 to-indigo-200 dark:from-violet-900/70 dark:to-indigo-900/70',
     ];
     const gradientClass = gradients[index % gradients.length];
 
@@ -73,7 +75,7 @@ function PaperItem({ paper, openAccordion, setOpenAccordion }: { paper: Paper; o
       <Card className="overflow-hidden shadow-md border-0 transition-all duration-300 ease-in-out hover:shadow-xl">
         <AccordionTrigger 
           onClick={handleTriggerClick}
-          className={cn("p-4 text-white text-left hover:no-underline", paper.gradient || 'bg-gradient-to-r from-yellow-500 to-red-600')}
+          className={cn("p-4 text-white text-left hover:no-underline", paper.gradient)}
         >
           <div className="flex-1">
             <h3 className="font-headline text-xl font-bold">{paper.name}</h3>
@@ -202,10 +204,14 @@ export default function HomePage() {
     // Open the first search result automatically
     if (searchTerm && filteredPapers.length > 0) {
       setOpenAccordion(filteredPapers[0].id);
-    } else {
+    } else if (!searchTerm && papers.length > 0) {
+      // Optionally open the first paper by default
+      // setOpenAccordion(papers[0].id);
+    }
+     else {
       setOpenAccordion("");
     }
-  }, [searchTerm, filteredPapers]);
+  }, [searchTerm, filteredPapers, papers]);
 
 
   return (
@@ -249,3 +255,5 @@ export default function HomePage() {
     </AppLayout>
   );
 }
+
+    

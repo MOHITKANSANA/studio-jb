@@ -149,7 +149,7 @@ function AdminGate({ children }: { children: React.ReactNode }) {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full h-12 text-lg font-bold gradient-button" disabled={isVerifyingCode}>
+                <Button type="submit" className="w-full h-12 text-lg font-bold bg-gradient-to-r from-green-400 to-blue-500 hover:from-green-500 hover:to-blue-600" disabled={isVerifyingCode}>
                   {isVerifyingCode ? <><LoaderCircle className="animate-spin mr-2" /> वेरिफाई हो रहा है...</> : 'एक्सेस करें'}
                 </Button>
               </form>
@@ -250,8 +250,8 @@ function AdminDashboard() {
   ];
 
   const revenue = [
-     { title: "आज की कमाई", value: "₹ 5,000", icon: DollarSign, color: "text-green-500" },
-     { title: "महीने की कमाई", value: "₹ 75,000", icon: DollarSign, color: "text-blue-500" },
+     { title: "आज की कमाई", value: "₹ 0", icon: DollarSign, color: "text-green-500" },
+     { title: "महीने की कमाई", value: "₹ 0", icon: DollarSign, color: "text-blue-500" },
   ]
 
   return (
@@ -291,9 +291,9 @@ function AdminDashboard() {
         <CardContent>
             <Tabs defaultValue="add-paper">
                 <TabsList className="grid w-full grid-cols-3 bg-muted/50">
-                    <TabsTrigger value="add-paper" className="gradient-button text-white data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform"><Book className="mr-2"/> पेपर / विषय</TabsTrigger>
-                    <TabsTrigger value="add-tab" className="gradient-button text-white data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform"><FolderPlus className="mr-2"/> नया टैब जोड़ें</TabsTrigger>
-                    <TabsTrigger value="add-pdf" className="gradient-button text-white data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform"><FilePlus className="mr-2"/> नया PDF जोड़ें</TabsTrigger>
+                    <TabsTrigger value="add-paper" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-blue-500 to-indigo-600"><Book className="mr-2"/> पेपर / विषय</TabsTrigger>
+                    <TabsTrigger value="add-tab" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-purple-500 to-pink-600"><FolderPlus className="mr-2"/> नया टैब जोड़ें</TabsTrigger>
+                    <TabsTrigger value="add-pdf" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-green-500 to-teal-600"><FilePlus className="mr-2"/> नया PDF जोड़ें</TabsTrigger>
                 </TabsList>
                 <TabsContent value="add-paper" className="mt-6">
                     <Form {...paperForm}>
@@ -410,8 +410,23 @@ function AdminDashboard() {
 
 export default function AdminPage() {
   const { user, isUserLoading } = useUser();
+  const firestore = useFirestore();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
-  if (isUserLoading) {
+  useEffect(() => {
+    async function checkAdminStatus() {
+      if (user) {
+        const adminDocRef = doc(firestore, "roles_admin", user.uid);
+        const docSnap = await getDoc(adminDocRef);
+        setIsAdmin(docSnap.exists());
+      } else {
+        setIsAdmin(false);
+      }
+    }
+    checkAdminStatus();
+  }, [user, firestore]);
+  
+  if (isUserLoading || isAdmin === null) {
     return (
       <AppLayout>
         <div className="flex-1 bg-muted flex items-center justify-center">
@@ -421,8 +436,6 @@ export default function AdminPage() {
     );
   }
 
-  // AdminGate will handle unauthenticated users, so we don't need a hard redirect here.
-  // This allows anyone to visit /admin and be met with the security prompt.
   return (
     <AppLayout>
       <main className="flex-1 overflow-y-auto">
