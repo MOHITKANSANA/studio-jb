@@ -87,7 +87,7 @@ function PaperItem({ paper, openAccordion, setOpenAccordion }: { paper: Paper; o
             <p className="text-xs text-white/80 font-normal mt-1">{paper.description}</p>
           </div>
         </AccordionTrigger>
-        <AccordionContent className="p-0 bg-background">
+        <AccordionContent className="p-0 bg-card">
           {!paper.tabs || paper.tabs.length === 0 ? (
             <p className="text-center text-muted-foreground p-4">इस पेपर के लिए अभी कोई टैब उपलब्ध नहीं है।</p>
           ) : (
@@ -98,10 +98,6 @@ function PaperItem({ paper, openAccordion, setOpenAccordion }: { paper: Paper; o
                            key={tab.id} 
                            value={tab.id}
                            className="data-[state=active]:shadow-md data-[state=active]:text-white"
-                           style={{
-                             // A simple way to add some color variety to tabs
-                             '--active-bg': `var(--chart-${(index % 5) + 1})` 
-                           } as React.CSSProperties}
                         >
                           {tab.name}
                         </TabsTrigger>
@@ -239,13 +235,13 @@ export default function HomePage() {
 
   return (
     <AppLayout>
-      <main className="flex-1 flex flex-col bg-muted/30">
+      <main className="flex-1 flex flex-col bg-background/30">
         <div className="p-6">
             <div className="relative">
                 <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
                 <Input
                   placeholder="विषय, टॉपिक, या PDF खोजें…"
-                  className="w-full h-14 pl-12 pr-4 rounded-full bg-background border-2 focus-visible:ring-primary"
+                  className="w-full h-14 pl-12 pr-4 rounded-full bg-card border-2 focus-visible:ring-primary"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -270,5 +266,3 @@ export default function HomePage() {
     </AppLayout>
   );
 }
-
-    
