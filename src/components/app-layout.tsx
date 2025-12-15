@@ -5,13 +5,17 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 import {
   Home,
   Shield,
-  Bell,
   LogOut,
   LoaderCircle,
-  BookOpenCheck
+  BookOpenCheck,
+  Settings,
+  BookCopy,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useUser, useAuth, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
 import { doc } from 'firebase/firestore';
@@ -46,16 +50,38 @@ import { Button } from "@/components/ui/button";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { cn } from "@/lib/utils";
 import type { User as AppUser } from '@/lib/types';
+import { SheetTitle } from "./ui/sheet";
 
 
 const menuItems = [
   { icon: Home, label: "होम", href: "/home" },
+  { icon: BookCopy, label: "विषय", href: "/home" },
+  { icon: Settings, label: "सेटिंग्स", href: "#" },
 ];
 
 const adminItems = [
   { icon: Shield, label: "एडमिन पैनल", href: "/admin" },
 ];
 
+function ThemeToggleButton() {
+    const { theme, setTheme } = useTheme();
+    const [mounted, setMounted] = React.useState(false);
+
+    React.useEffect(() => setMounted(true), []);
+
+    if (!mounted) {
+        return <SidebarMenuButton disabled={true}><LoaderCircle className="w-5 h-5 animate-spin"/></SidebarMenuButton>
+    }
+
+    const isDark = theme === 'dark';
+
+    return (
+        <SidebarMenuButton onClick={() => setTheme(isDark ? 'light' : 'dark')}>
+            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            <span>{isDark ? 'लाइट मोड' : 'डार्क मोड'}</span>
+        </SidebarMenuButton>
+    )
+}
 
 function AppSidebar() {
   const pathname = usePathname();
@@ -142,6 +168,9 @@ function AppSidebar() {
       <SidebarFooter className="p-4 border-t border-white/10 mt-auto">
          <SidebarMenu>
             <SidebarMenuItem>
+              <ThemeToggleButton />
+            </SidebarMenuItem>
+            <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout} className="text-red-400 hover:bg-red-500/20 hover:text-red-300 w-full">
                     <LogOut className="w-5 h-5" />
                     <span>लॉगआउट</span>
@@ -181,9 +210,6 @@ function TopBar() {
          <BookOpenCheck className="w-7 h-7 text-primary" />
          <h1 className="font-headline text-xl font-bold gradient-text">Smart Study MPSE</h1>
       </div>
-       <Button variant="ghost" size="icon" className="text-foreground/70 hover:text-foreground">
-          <Bell />
-        </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
@@ -251,6 +277,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <SidebarProvider>
         <div className="flex min-h-screen w-full">
           <Sidebar collapsible="offcanvas" className="w-72">
+            <SheetTitle className="sr-only">मुख्य मेन्यू</SheetTitle>
             <AppSidebar />
           </Sidebar>
           <div className="flex flex-col flex-1">
