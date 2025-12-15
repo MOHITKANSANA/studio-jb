@@ -6,6 +6,7 @@ export type Pdf = {
   accessType: 'Free' | 'Paid';
   paperId: string;
   tabId: string;
+  createdAt: any; // Firestore ServerTimestamp
 };
 
 export type Tab = {
@@ -13,6 +14,7 @@ export type Tab = {
   name: string;
   paperId: string;
   pdfs?: Pdf[];
+  createdAt: any; // Firestore ServerTimestamp
 }
 
 export type Paper = {
@@ -22,6 +24,7 @@ export type Paper = {
   paperNumber: number;
   gradient?: string; // Optional gradient for styling
   tabs?: Tab[]; // This will be populated from a subcollection
+  createdAt: any; // Firestore ServerTimestamp
 };
 
 export type User = {
@@ -40,4 +43,7 @@ export type Combo = {
   price?: number;
   pdfIds: string[];
   pdfs?: Pdf[]; // Populated on the client
+  createdAt: any; // Firestore ServerTimestamp
 };
+
+    

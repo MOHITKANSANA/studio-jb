@@ -4,8 +4,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock, Unlock, File as FileIcon, Search as SearchIcon, LoaderCircle } from "lucide-react";
-import { collection, query, orderBy, getDocs } from "firebase/firestore";
+import { Lock, Unlock, Search as SearchIcon, LoaderCircle, Cloud } from "lucide-react";
+import { collection, query, orderBy, getDocs, limit } from "firebase/firestore";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { AppLayout } from "@/components/app-layout";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { Paper, PdfDocument as Pdf, Tab, Combo } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 const pdfGradients = [
     'from-sky-200 to-blue-200 dark:from-sky-900/70 dark:to-blue-900/70',
@@ -187,6 +188,8 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
         'from-yellow-400 to-amber-500',
         'from-green-400 to-teal-500',
         'from-pink-400 to-rose-500',
+        'from-sky-400 to-cyan-500',
+        'from-violet-400 to-purple-500',
     ];
     const gradientClass = comboGradients[index % comboGradients.length];
 
@@ -209,17 +212,17 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
     };
 
     return (
-        <a href="#" onClick={handleClick} className="block">
-            <Card className={cn("text-white border-0 shadow-lg hover:shadow-xl transition-shadow", gradientClass)}>
+        <a href="#" onClick={handleClick} className="block group">
+            <Card className={cn("text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform group-hover:scale-105", gradientClass)}>
                 <CardHeader>
                     <div className="flex justify-between items-start">
-                        <CardTitle className="text-lg font-bold">{combo.name}</CardTitle>
+                        <CardTitle className="text-lg font-bold flex items-center gap-2"><Cloud className="w-6 h-6"/>{combo.name}</CardTitle>
                         {isPaid 
                             ? <Lock className="h-5 w-5 text-white/80" />
                             : <Unlock className="h-5 w-5 text-white/80" />
                         }
                     </div>
-                    <CardDescription className="text-white/80 text-xs">{combo.description}</CardDescription>
+                    <CardDescription className="text-white/80 text-xs pt-2">{combo.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isPaid && (
@@ -237,8 +240,8 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const { papers, loading } = usePapersWithContent();
   const firestore = useFirestore();
-  const combosQuery = useMemoFirebase(() => query(collection(firestore, "combos"), orderBy("name")), [firestore]);
-  const { data: combos, isLoading: combosLoading } = useCollection<Combo>(combosQuery);
+  const combosQuery = useMemoFirebase(() => query(collection(firestore, "combos"), orderBy("createdAt", "desc"), limit(4)), [firestore]);
+  const { data: allCombos, isLoading: combosLoading } = useCollection<Combo>(combosQuery);
   const [openAccordion, setOpenAccordion] = useState<string>("");
 
   const filteredPapers = useMemo(() => {
@@ -272,6 +275,16 @@ export default function HomePage() {
     }).filter((p): p is Paper => p !== null);
 
   }, [searchTerm, papers]);
+  
+  const filteredCombos = useMemo(() => {
+    if (!allCombos) return [];
+    if (!searchTerm) return allCombos;
+    const lowercasedFilter = searchTerm.toLowerCase();
+    return allCombos.filter(combo => 
+        combo.name.toLowerCase().includes(lowercasedFilter) ||
+        combo.description.toLowerCase().includes(lowercasedFilter)
+    );
+  }, [searchTerm, allCombos]);
 
   useEffect(() => {
     if (searchTerm && filteredPapers.length > 0) {
@@ -302,7 +315,7 @@ export default function HomePage() {
             <div className="relative">
                 <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
                 <Input
-                  placeholder="विषय, टॉपिक, या PDF खोजें…"
+                  placeholder="विषय, टॉपिक, या PDF कॉम्बो खोजें…"
                   className="w-full h-14 pl-12 pr-4 rounded-full bg-card border-2 focus-visible:ring-primary"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -313,7 +326,7 @@ export default function HomePage() {
         <div className="flex-1 p-4 sm:p-6 pt-0 overflow-y-auto">
            {loading && <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin text-primary" /></div>}
            
-           {!loading && papersWithGradients.length === 0 && !combosLoading && (!combos || combos.length === 0) && (
+           {!loading && papersWithGradients.length === 0 && !combosLoading && (!filteredCombos || filteredCombos.length === 0) && (
              <p className="text-center text-muted-foreground p-8">
                {searchTerm ? `"${searchTerm}" के लिए कोई परिणाम नहीं मिला।` : "अभी कोई कंटेंट उपलब्ध नहीं है। कृपया बाद में जांचें।"}
              </p>
@@ -325,11 +338,16 @@ export default function HomePage() {
             ))}
           </Accordion>
 
-          {combos && combos.length > 0 && (
+          {filteredCombos && filteredCombos.length > 0 && (
             <div className="mt-8">
-                <h2 className="text-2xl font-headline font-bold mb-4 gradient-text">Important PDF Combos</h2>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-headline font-bold gradient-text">Important PDF Combos</h2>
+                    <Link href="/combos">
+                        <Button className="gradient-button text-white font-bold">सभी कॉम्बो देखें</Button>
+                    </Link>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {combos.map((combo, index) => (
+                    {filteredCombos.map((combo, index) => (
                         <ComboItem key={combo.id} combo={combo} index={index} />
                     ))}
                 </div>
@@ -340,3 +358,5 @@ export default function HomePage() {
     </AppLayout>
   );
 }
+
+    

@@ -265,7 +265,7 @@ function AdminDashboard() {
   async function onAddCombo(values: z.infer<typeof comboSchema>) {
     setIsSubmitting(true);
     const newCombo = { ...values, price: values.accessType === 'Paid' ? values.price : 0, pdfIds: [], createdAt: serverTimestamp() };
-    await addDocumentNonBlocking(collection(firestore, "combos"), newCombo);
+    const docRef = await addDocumentNonBlocking(collection(firestore, "combos"), newCombo);
     toast({ title: "सफलता!", description: `कॉम्बो "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
     comboForm.reset();
     setIsSubmitting(false);
@@ -406,3 +406,5 @@ export default function AdminPage() {
         </AppLayout>
     );
 }
+
+    
