@@ -73,43 +73,14 @@ const securityCodeSchema = z.object({
 
 function AdminGate({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
-  const firestore = useFirestore();
-  const [isAdminRole, setIsAdminRole] = useState(false);
-  const [isRoleVerifying, setIsRoleVerifying] = useState(true);
   const [isSecurityVerified, setSecurityVerified] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
-  const [securityMessage, setSecurityMessage] = useState<string | null>(null);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   
   const securityCodeForm = useForm<z.infer<typeof securityCodeSchema>>({
     resolver: zodResolver(securityCodeSchema),
     defaultValues: { code: "" },
   });
-
-  const verifyAdminRole = useCallback(async () => {
-    if (!user) {
-      setIsRoleVerifying(false);
-      setIsAdminRole(false);
-      return;
-    }
-    setIsRoleVerifying(true);
-    try {
-      const adminRef = doc(firestore, 'roles_admin', user.uid);
-      const docSnap = await getDoc(adminRef);
-      setIsAdminRole(docSnap.exists());
-    } catch (error) {
-      console.error("Error checking admin role:", error);
-      setIsAdminRole(false);
-    } finally {
-      setIsRoleVerifying(false);
-    }
-  }, [user, firestore]);
-
-  useEffect(() => {
-    if (!isUserLoading) {
-      verifyAdminRole();
-    }
-  }, [isUserLoading, verifyAdminRole]);
 
   useEffect(() => {
     // Check session storage for previous verification
@@ -121,46 +92,33 @@ function AdminGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function onSecurityCodeSubmit(values: z.infer<typeof securityCodeSchema>) {
-    setSecurityMessage(null);
-    if (values.code !== "Learnx") {
-        securityCodeForm.setError("code", { type: "manual", message: "गलत सिक्योरिटी कोड। कृपया पुनः प्रयास करें।" });
-        return;
-    }
-    
     setIsVerifyingCode(true);
-    setSecurityMessage("सिक्योरिटी वेरिफाई हो रही है...");
+    securityCodeForm.clearErrors("code");
 
     await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate verification delay
 
+    if (values.code !== "Learnx") {
+        securityCodeForm.setError("code", { type: "manual", message: "गलत सिक्योरिटी कोड। कृपया पुनः प्रयास करें।" });
+        setIsVerifyingCode(false);
+        return;
+    }
+    
     localStorage.setItem('admin_security_verified', 'true');
     setSecurityVerified(true);
     setIsVerifyingCode(false);
   }
 
-  if (isUserLoading || isRoleVerifying || isCheckingSession) {
+  if (isUserLoading || isCheckingSession) {
     return (
       <Dialog open={true}>
         <DialogContent className="flex items-center justify-center">
           <LoaderCircle className="w-8 h-8 animate-spin mr-2" />
-          <DialogTitle>एडमिन स्थिति की जाँच हो रही है...</DialogTitle>
+          <DialogTitle>लोड हो रहा है...</DialogTitle>
         </DialogContent>
       </Dialog>
     );
   }
 
-  if (!isAdminRole) {
-    return (
-      <Dialog open={true}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>पहुंच प्रतिबंधित</DialogTitle>
-            <DialogDescription>आप एडमिन नहीं हैं। यह क्षेत्र केवल एडमिन के लिए है।</DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-  
   if (!isSecurityVerified) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] bg-muted/20 p-4">
@@ -169,7 +127,7 @@ function AdminGate({ children }: { children: React.ReactNode }) {
             <div className="flex justify-center mb-4"><ShieldCheck className="w-12 h-12" /></div>
             <CardTitle className="text-2xl">एडमिन सिक्योरिटी चेक</CardTitle>
             <CardDescription className="text-white/80">
-              आपको ओनर द्वारा दिया गया सिक्योरिटी कोड डालें।
+              यह क्षेत्र सुरक्षित है। आगे बढ़ने के लिए कृपया सीक्रेट कोड डालें।
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -192,9 +150,8 @@ function AdminGate({ children }: { children: React.ReactNode }) {
                   )}
                 />
                 <Button type="submit" className="w-full h-12 text-lg font-bold gradient-button" disabled={isVerifyingCode}>
-                  {isVerifyingCode ? <LoaderCircle className="animate-spin" /> : 'एक्सेस करें'}
+                  {isVerifyingCode ? <><LoaderCircle className="animate-spin mr-2" /> वेरिफाई हो रहा है...</> : 'एक्सेस करें'}
                 </Button>
-                {securityMessage && <p className="text-center text-sm text-green-400">{securityMessage}</p>}
               </form>
             </Form>
           </CardContent>
@@ -464,21 +421,8 @@ export default function AdminPage() {
     );
   }
 
-  if (!user) {
-    return (
-      <AppLayout>
-        <Dialog open={true}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>पहुंच प्रतिबंधित</DialogTitle>
-              <DialogDescription>इस पेज को देखने के लिए कृपया लॉगिन करें।</DialogDescription>
-            </DialogHeader>
-          </DialogContent>
-        </Dialog>
-      </AppLayout>
-    );
-  }
-
+  // AdminGate will handle unauthenticated users, so we don't need a hard redirect here.
+  // This allows anyone to visit /admin and be met with the security prompt.
   return (
     <AppLayout>
       <main className="flex-1 overflow-y-auto">
