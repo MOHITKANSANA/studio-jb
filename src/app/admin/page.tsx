@@ -36,7 +36,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Book, Users, DollarSign, Lock, Unlock, BarChart, PlusCircle, LoaderCircle, Send, Library, FilePlus, FolderPlus } from "lucide-react";
+import { FileText, Book, Users, DollarSign, Lock, Unlock, BarChart, PlusCircle, LoaderCircle, Send, Library, FilePlus, FolderPlus, ShieldCheck, KeyRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { cn } from "@/lib/utils";
@@ -67,42 +67,77 @@ const notificationSchema = z.object({
     imageUrl: z.string().url("कृपया एक मान्य इमेज URL डालें।").optional().or(z.literal('')),
 });
 
+const securityCodeSchema = z.object({
+  code: z.string().min(1, "कृपया सिक्योरिटी कोड डालें।"),
+});
+
 function AdminGate({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(true);
+  const [isAdminRole, setIsAdminRole] = useState(false);
+  const [isRoleVerifying, setIsRoleVerifying] = useState(true);
+  const [isSecurityVerified, setSecurityVerified] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [securityMessage, setSecurityMessage] = useState<string | null>(null);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  
+  const securityCodeForm = useForm<z.infer<typeof securityCodeSchema>>({
+    resolver: zodResolver(securityCodeSchema),
+    defaultValues: { code: "" },
+  });
 
-  const verifyAdmin = useCallback(async () => {
+  const verifyAdminRole = useCallback(async () => {
     if (!user) {
-      setIsVerifying(false);
-      setIsAdmin(false);
+      setIsRoleVerifying(false);
+      setIsAdminRole(false);
       return;
     }
-    setIsVerifying(true);
+    setIsRoleVerifying(true);
     try {
       const adminRef = doc(firestore, 'roles_admin', user.uid);
       const docSnap = await getDoc(adminRef);
-      if (docSnap.exists()) {
-        setIsAdmin(true);
-      } else {
-        setIsAdmin(false);
-      }
+      setIsAdminRole(docSnap.exists());
     } catch (error) {
-      console.error("Error checking admin status:", error);
-      setIsAdmin(false);
+      console.error("Error checking admin role:", error);
+      setIsAdminRole(false);
     } finally {
-      setIsVerifying(false);
+      setIsRoleVerifying(false);
     }
   }, [user, firestore]);
 
   useEffect(() => {
     if (!isUserLoading) {
-      verifyAdmin();
+      verifyAdminRole();
     }
-  }, [isUserLoading, verifyAdmin]);
+  }, [isUserLoading, verifyAdminRole]);
 
-  if (isUserLoading || isVerifying) {
+  useEffect(() => {
+    // Check session storage for previous verification
+    const sessionVerified = localStorage.getItem('admin_security_verified');
+    if (sessionVerified === 'true') {
+      setSecurityVerified(true);
+    }
+    setIsCheckingSession(false);
+  }, []);
+
+  async function onSecurityCodeSubmit(values: z.infer<typeof securityCodeSchema>) {
+    setSecurityMessage(null);
+    if (values.code !== "Learnx") {
+        securityCodeForm.setError("code", { type: "manual", message: "गलत सिक्योरिटी कोड। कृपया पुनः प्रयास करें।" });
+        return;
+    }
+    
+    setIsVerifyingCode(true);
+    setSecurityMessage("सिक्योरिटी वेरिफाई हो रही है...");
+
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate verification delay
+
+    localStorage.setItem('admin_security_verified', 'true');
+    setSecurityVerified(true);
+    setIsVerifyingCode(false);
+  }
+
+  if (isUserLoading || isRoleVerifying || isCheckingSession) {
     return (
       <Dialog open={true}>
         <DialogContent className="flex items-center justify-center">
@@ -113,7 +148,7 @@ function AdminGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isAdmin) {
+  if (!isAdminRole) {
     return (
       <Dialog open={true}>
         <DialogContent>
@@ -125,6 +160,48 @@ function AdminGate({ children }: { children: React.ReactNode }) {
       </Dialog>
     );
   }
+  
+  if (!isSecurityVerified) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] bg-muted/20 p-4">
+        <Card className="w-full max-w-md shadow-2xl bg-gradient-to-br from-blue-900 via-purple-900 to-teal-900 text-white border-white/20">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4"><ShieldCheck className="w-12 h-12" /></div>
+            <CardTitle className="text-2xl">एडमिन सिक्योरिटी चेक</CardTitle>
+            <CardDescription className="text-white/80">
+              आपको ओनर द्वारा दिया गया सिक्योरिटी कोड डालें।
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Form {...securityCodeForm}>
+              <form onSubmit={securityCodeForm.handleSubmit(onSecurityCodeSubmit)} className="space-y-6">
+                <FormField
+                  control={securityCodeForm.control}
+                  name="code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>सीक्रेट कोड</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                           <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-white/50" />
+                           <Input type="password" placeholder="••••••••" {...field} className="bg-black/30 border-white/30 text-white pl-10 h-12"/>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" className="w-full h-12 text-lg font-bold gradient-button" disabled={isVerifyingCode}>
+                  {isVerifyingCode ? <LoaderCircle className="animate-spin" /> : 'एक्सेस करें'}
+                </Button>
+                {securityMessage && <p className="text-center text-sm text-green-400">{securityMessage}</p>}
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return <>{children}</>;
 }
@@ -133,7 +210,6 @@ function AdminGate({ children }: { children: React.ReactNode }) {
 function AdminDashboard() {
   const { toast } = useToast();
   const firestore = useFirestore();
-  const revenueChart = PlaceHolderImages.find(img => img.id === 'chart-placeholder-1');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const papersQuery = useMemoFirebase(() => query(collection(firestore, "papers"), orderBy("paperNumber")), [firestore]);
@@ -141,11 +217,13 @@ function AdminDashboard() {
 
   const usersQuery = useMemoFirebase(() => query(collection(firestore, "users")), [firestore]);
   const { data: users, isLoading: usersLoading } = useCollection<AppUser>(usersQuery);
-
-  // For PDF counts, you might need a more sophisticated approach like cloud functions for large datasets
-  // This is a simplified client-side estimation.
-  const [pdfCount, setPdfCount] = useState({ free: 0, paid: 0, total: 0 });
-
+  
+  const [selectedPaperForTabs, setSelectedPaperForTabs] = useState<string>("");
+  const tabsForSelectedPaperQuery = useMemoFirebase(() => 
+    selectedPaperForTabs ? query(collection(firestore, `papers/${selectedPaperForTabs}/tabs`), orderBy("name")) : null
+  , [firestore, selectedPaperForTabs]);
+  const { data: tabsForSelectedPaper, isLoading: tabsLoading } = useCollection<Tab>(tabsForSelectedPaperQuery);
+  
   const paperForm = useForm<z.infer<typeof paperSchema>>({
     resolver: zodResolver(paperSchema),
     defaultValues: { name: "", description: "" },
@@ -160,13 +238,6 @@ function AdminDashboard() {
     resolver: zodResolver(pdfSchema),
     defaultValues: { name: "", description: "", googleDriveLink: "", paperId: "", tabId: "", accessType: "Free" }
   });
-  
-  const [selectedPaperForTabs, setSelectedPaperForTabs] = useState<string>("");
-  const tabsForSelectedPaperQuery = useMemoFirebase(() => 
-    selectedPaperForTabs ? query(collection(firestore, `papers/${selectedPaperForTabs}/tabs`), orderBy("name")) : null
-  , [firestore, selectedPaperForTabs]);
-  const { data: tabsForSelectedPaper, isLoading: tabsLoading } = useCollection<Tab>(tabsForSelectedPaperQuery);
-
 
   const notificationForm = useForm<z.infer<typeof notificationSchema>>({
     resolver: zodResolver(notificationSchema),
@@ -206,7 +277,6 @@ function AdminDashboard() {
     setIsSubmitting(false);
   }
 
-
   async function onSendNotification(values: z.infer<typeof notificationSchema>) {
     setIsSubmitting(true);
     console.log("Sending notification:", values);
@@ -225,7 +295,6 @@ function AdminDashboard() {
   const revenue = [
      { title: "आज की कमाई", value: "₹ 5,000", icon: DollarSign, color: "text-green-500" },
      { title: "महीने की कमाई", value: "₹ 75,000", icon: DollarSign, color: "text-blue-500" },
-     { title: "कुल Revenue", value: "₹ 5,50,000", icon: BarChart, color: "text-purple-500" },
   ]
 
   return (
@@ -254,7 +323,7 @@ function AdminDashboard() {
                     <p className="text-2xl font-bold text-foreground">{item.value}</p>
                 </div>
             </div>
-        )).slice(0, 2)}
+        ))}
       </div>
 
        <Card>
@@ -266,8 +335,8 @@ function AdminDashboard() {
             <Tabs defaultValue="add-paper">
                 <TabsList className="grid w-full grid-cols-3 bg-muted/50">
                     <TabsTrigger value="add-paper" className="gradient-button text-white data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform"><Book className="mr-2"/> पेपर / विषय</TabsTrigger>
-                    <TabsTrigger value="add-tab" className="gradient-button text-white data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform"><FolderPlus className="mr-2"/> टैब</TabsTrigger>
-                    <TabsTrigger value="add-pdf" className="gradient-button text-white data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform"><FilePlus className="mr-2"/> PDF</TabsTrigger>
+                    <TabsTrigger value="add-tab" className="gradient-button text-white data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform"><FolderPlus className="mr-2"/> नया टैब जोड़ें</TabsTrigger>
+                    <TabsTrigger value="add-pdf" className="gradient-button text-white data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform"><FilePlus className="mr-2"/> नया PDF जोड़ें</TabsTrigger>
                 </TabsList>
                 <TabsContent value="add-paper" className="mt-6">
                     <Form {...paperForm}>
