@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Lock, File as FileIcon, Search as SearchIcon, LoaderCircle } from "lucide-react";
 import { collection, query, orderBy } from "firebase/firestore";
