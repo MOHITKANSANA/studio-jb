@@ -235,7 +235,7 @@ export default function HomePage() {
 
   return (
     <AppLayout>
-      <main className="flex-1 flex flex-col bg-background/30">
+      <main className="flex-1 flex flex-col bg-background">
         <div className="p-6">
             <div className="relative">
                 <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
