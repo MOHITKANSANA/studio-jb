@@ -32,7 +32,6 @@
         "id",
         "fullName",
         "email",
-        "mobileNumber",
         "role"
       ]
     },
@@ -75,15 +74,45 @@
           "type": "string",
           "description": "The name of the paper or subject (e.g., Paper 1, Mathematics)."
         },
+        "description": {
+          "type": "string",
+          "description": "A short description of the paper (max 10 words)."
+        },
         "paperNumber": {
           "type": "number",
-          "description": "The number of the paper (e.g., 1, 2, 3)."
+          "description": "The number of the paper for ordering (e.g., 1, 2, 3)."
         }
       },
       "required": [
         "id",
         "name",
+        "description",
         "paperNumber"
+      ]
+    },
+    "Tab": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Tab",
+      "type": "object",
+      "description": "Represents a tab or chapter within a paper.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Tab entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the tab (e.g., Chapter 1, Ancient History)."
+        },
+        "paperId": {
+          "type": "string",
+          "description": "Reference to Paper. (Relationship: Paper 1:N Tab)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "paperId"
       ]
     },
     "PdfDocument": {
@@ -111,7 +140,11 @@
         },
         "paperId": {
           "type": "string",
-          "description": "Reference to Paper. (Relationship: Paper 1:N PdfDocument)"
+          "description": "Denormalized reference to Paper for easier queries."
+        },
+        "tabId": {
+          "type": "string",
+          "description": "Reference to Tab. (Relationship: Tab 1:N PdfDocument)"
         },
         "accessType": {
           "type": "string",
@@ -123,6 +156,7 @@
         "name",
         "description",
         "googleDriveLink",
+        "tabId",
         "paperId",
         "accessType"
       ]
@@ -143,13 +177,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Stores user profiles. Accessible only by the user and admins.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique ID of the user."
-            }
-          ]
+          "description": "Stores user profiles. Accessible only by the user and admins."
         }
       },
       {
@@ -159,13 +187,7 @@
           "schema": {
             "$ref": "#/backend/entities/Admin"
           },
-          "description": "Collection to indicate admin roles. Existence of a document grants admin privileges.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique ID of the admin user."
-            }
-          ]
+          "description": "Collection to indicate admin roles. Existence of a document grants admin privileges."
         }
       },
       {
@@ -175,36 +197,29 @@
           "schema": {
             "$ref": "#/backend/entities/Paper"
           },
-          "description": "Stores paper or subject information.",
-          "params": [
-            {
-              "name": "paperId",
-              "description": "The unique ID of the paper."
-            }
-          ]
+          "description": "Stores paper or subject information."
         }
       },
       {
-        "path": "/papers/{paperId}/pdfDocuments/{pdfDocumentId}",
+        "path": "/papers/{paperId}/tabs/{tabId}",
+        "definition": {
+          "entityName": "Tab",
+          "schema": {
+            "$ref": "#/backend/entities/Tab"
+          },
+          "description": "Stores tabs or chapters associated with a specific paper."
+        }
+      },
+      {
+        "path": "/papers/{paperId}/tabs/{tabId}/pdfDocuments/{pdfDocumentId}",
         "definition": {
           "entityName": "PdfDocument",
           "schema": {
             "$ref": "#/backend/entities/PdfDocument"
           },
-          "description": "Stores PDF documents associated with a specific paper.",
-          "params": [
-            {
-              "name": "paperId",
-              "description": "The unique ID of the paper."
-            },
-            {
-              "name": "pdfDocumentId",
-              "description": "The unique ID of the PDF document."
-            }
-          ]
+          "description": "Stores PDF documents associated with a specific tab within a paper."
         }
       }
-    ],
-    "reasoning": "This Firestore structure is designed to support the Smart Study MPSE application's requirements for secure admin access, dynamic content management, and a free/paid content model. It prioritizes authorization independence, clarity, and scalability.\n\n**Authorization Independence:**\n\n*   The structure avoids hierarchical authorization dependencies (`get()` calls in rules). Access control is managed primarily through path-based ownership (`/users/{userId}`) and, for admin roles, through the existence of documents in the `/roles_admin/{userId}` collection.\n*   No denormalization is explicitly needed because the admin status is verified by existence. The user roles are stored inside the user documents.\n\n**Structural Segregation:**\n\n*   The structure segregates data based on access requirements. User data is stored under `/users/{userId}`, ensuring private access. Admin-related data (verification) is kept in a separate `/roles_admin/{userId}` collection.\n*   This segregation simplifies security rules and ensures that each collection has a homogeneous security posture.\n\n**Access Modeling:**\n\n*   User data is stored using path-based ownership (`/users/{userId}`). This is a standard and secure pattern.\n*   The `/papers/{paperId}/pdfDocuments/{pdfDocumentId}` path uses a hierarchical path to represent the 1:N relationship between Papers and PdfDocuments.  This inherently enforces the relationship and simplifies security rules.\n*   Admin roles are managed using a dedicated `/roles_admin/{userId}` collection. The existence of a document in this collection grants admin privileges.\n\n**QAPs (Rules are not Filters):**\n\n*   The structure enables secure `list` operations by avoiding complex filtering in rules. List operations are scoped to user-owned data or, in the case of admin-managed content, are protected by requiring admin authentication.\n*   The separation of free and paid PDF content is managed by access type logic within the app UI, not by separate collections. The security rules ensure that even if a user tries to directly access a paid document, the rules will enforce appropriate authorization.\n\n**Invariants:**\n\n*   The structure supports the integrity of ownership and relationships. Path-based ownership ensures that only the user can modify their data.  The relationship between papers and PDF documents is enforced by the hierarchical structure."
+    ]
   }
 }

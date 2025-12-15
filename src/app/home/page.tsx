@@ -1,67 +1,100 @@
 
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, "use client";
+
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Lock, File as FileIcon, Search as SearchIcon, LoaderCircle } from "lucide-react";
-import { collection, query, orderBy } from "firebase/firestore";
+import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { AppLayout } from "@/components/app-layout";
 import { Input } from "@/components/ui/input";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import type { Paper, Pdf } from "@/lib/types";
+import type { Paper, Pdf, Tab } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
-function PaperItem({ paper, pdfs, isLoading, open }: { paper: Paper; pdfs: Pdf[] | null; isLoading: boolean; open: boolean }) {
-  const { toast } = useToast();
-  
-  const handlePaidPdfClick = (e: React.MouseEvent, pdfName: string) => {
-    e.preventDefault();
-    toast({
-      variant: "destructive",
-      title: `"${pdfName}" एक पेड PDF है`,
-      description: "यह PDF पेड है, खरीदने के लिए आगे बढ़ें।",
-    });
+function PdfItem({ pdf }: { pdf: Pdf }) {
+    const { toast } = useToast();
+    const isPaid = pdf.accessType === 'Paid';
+
+    const handlePaidPdfClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        toast({
+            variant: "destructive",
+            title: `"${pdf.name}" एक पेड PDF है`,
+            description: "यह PDF पेड है, खरीदने के लिए आगे बढ़ें।",
+        });
+    }
+
+    return (
+        <Link 
+          href={isPaid ? "#" : pdf.googleDriveLink} 
+          onClick={isPaid ? handlePaidPdfClick : undefined}
+          target={isPaid ? '_self' : '_blank'}
+          rel="noopener noreferrer"
+          className="block"
+        >
+          <div className="flex items-center p-3 rounded-lg hover:bg-muted transition-colors">
+            <div className={cn("p-2 rounded-md mr-4", isPaid ? 'bg-amber-500/10' : 'bg-primary/10')}>
+              {isPaid 
+                ? <Lock className="h-5 w-5 text-amber-500" />
+                : <FileIcon className="h-5 w-5 text-primary" />
+              }
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-foreground text-sm">{pdf.name}</p>
+              <p className="text-xs text-muted-foreground">{pdf.description}</p>
+            </div>
+          </div>
+        </Link>
+    )
+}
+
+function PaperItem({ paper, openAccordion, setOpenAccordion }: { paper: Paper; openAccordion: string; setOpenAccordion: (id: string) => void; }) {
+  const isOpen = openAccordion === paper.id;
+
+  const handleTriggerClick = () => {
+    setOpenAccordion(isOpen ? "" : paper.id);
   }
 
   return (
     <AccordionItem value={paper.id} className="border-b-0">
       <Card className="overflow-hidden shadow-md border-0 transition-all duration-300 ease-in-out hover:shadow-xl">
-        <AccordionTrigger className={cn("p-6 text-white text-left hover:no-underline", paper.gradient || 'bg-gradient-to-r from-yellow-500 to-red-600')}>
-          <h3 className="font-headline text-2xl font-bold">{paper.name}</h3>
+        <AccordionTrigger 
+          onClick={handleTriggerClick}
+          className={cn("p-4 text-white text-left hover:no-underline", paper.gradient || 'bg-gradient-to-r from-yellow-500 to-red-600')}
+        >
+          <div className="flex-1">
+            <h3 className="font-headline text-xl font-bold">{paper.name}</h3>
+            <p className="text-xs text-white/80 font-normal mt-1">{paper.description}</p>
+          </div>
         </AccordionTrigger>
-        <AccordionContent className="p-4 bg-background">
-          {isLoading && <div className="flex justify-center p-4"><LoaderCircle className="w-6 h-6 animate-spin" /></div>}
-          {!isLoading && pdfs && pdfs.length > 0 ? (
-            <div className="space-y-3">
-              {pdfs.map((pdf) => (
-                <Link 
-                  href={pdf.accessType === 'Paid' ? "#" : pdf.googleDriveLink} 
-                  key={pdf.id}
-                  onClick={(e) => pdf.accessType === 'Paid' && handlePaidPdfClick(e, pdf.name)}
-                  target={pdf.accessType === 'Free' ? '_blank' : '_self'}
-                  rel="noopener noreferrer"
-                  className="block"
-                >
-                  <div className="flex items-center p-3 rounded-lg hover:bg-muted transition-colors">
-                    <div className={cn("p-2 rounded-md mr-4", pdf.accessType === 'Paid' ? 'bg-amber-500/10' : 'bg-primary/10')}>
-                      {pdf.accessType === 'Paid' 
-                        ? <Lock className="h-6 w-6 text-amber-500" />
-                        : <FileIcon className="h-6 w-6 text-primary" />
-                      }
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-foreground">{pdf.name}</p>
-                      <p className="text-sm text-muted-foreground">{pdf.description}</p>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+        <AccordionContent className="p-0 bg-background">
+          {!paper.tabs || paper.tabs.length === 0 ? (
+            <p className="text-center text-muted-foreground p-4">इस पेपर के लिए अभी कोई टैब उपलब्ध नहीं है।</p>
           ) : (
-            !isLoading && <p className="text-center text-muted-foreground p-4">इस पेपर के लिए अभी कोई मटेरियल उपलब्ध नहीं है।</p>
+             <Tabs defaultValue={paper.tabs[0].id} className="w-full">
+                <TabsList className="m-2">
+                    {paper.tabs.map(tab => (
+                        <TabsTrigger key={tab.id} value={tab.id}>{tab.name}</TabsTrigger>
+                    ))}
+                </TabsList>
+                {paper.tabs.map(tab => (
+                     <TabsContent key={tab.id} value={tab.id} className="p-2">
+                        {tab.pdfs && tab.pdfs.length > 0 ? (
+                             <div className="space-y-2">
+                                {tab.pdfs.map(pdf => <PdfItem key={pdf.id} pdf={pdf} />)}
+                            </div>
+                        ) : (
+                            <p className="text-center text-muted-foreground p-4">इस टैब में कोई PDF नहीं है।</p>
+                        )}
+                    </TabsContent>
+                ))}
+             </Tabs>
           )}
         </AccordionContent>
       </Card>
@@ -69,78 +102,104 @@ function PaperItem({ paper, pdfs, isLoading, open }: { paper: Paper; pdfs: Pdf[]
   );
 }
 
-// Custom hook to fetch PDFs for all papers
-function useAllPdfs(papers: Paper[] | null) {
+
+function usePapersWithContent() {
     const firestore = useFirestore();
-    const [allPdfs, setAllPdfs] = useState<Record<string, Pdf[]>>({});
+    const [papers, setPapers] = useState<Paper[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const pdfQueries = useMemo(() => {
-        if (!papers) return [];
-        return papers.map(paper => 
-            query(collection(firestore, `papers/${paper.id}/pdfDocuments`), orderBy("name"))
-        );
-    }, [papers, firestore]);
-    
-    // This is not a real hook, but a way to use useCollection inside a loop
-    const pdfCollections = pdfQueries.map(q => useCollection<Pdf>(useMemoFirebase(() => q, [q])));
+    const papersQuery = useMemoFirebase(
+        () => query(collection(firestore, "papers"), orderBy("paperNumber")),
+        [firestore]
+    );
+
+    const { data: initialPapers, isLoading: papersLoading } = useCollection<Paper>(papersQuery);
+
+    const fetchContent = useCallback(async (papersToFetch: Paper[]) => {
+        setLoading(true);
+        const papersWithContent: Paper[] = [];
+
+        for (const paper of papersToFetch) {
+            const tabsQuery = query(collection(firestore, `papers/${paper.id}/tabs`), orderBy("name"));
+            const tabsSnapshot = await getDocs(tabsQuery);
+            const tabs: Tab[] = [];
+
+            for (const tabDoc of tabsSnapshot.docs) {
+                const tabData = { ...tabDoc.data(), id: tabDoc.id } as Tab;
+                const pdfsQuery = query(collection(firestore, `papers/${paper.id}/tabs/${tabDoc.id}/pdfDocuments`), orderBy("name"));
+                const pdfsSnapshot = await getDocs(pdfsQuery);
+                const pdfs: Pdf[] = pdfsSnapshot.docs.map(pdfDoc => ({ ...pdfDoc.data(), id: pdfDoc.id } as Pdf));
+                tabs.push({ ...tabData, pdfs });
+            }
+            papersWithContent.push({ ...paper, tabs });
+        }
+        setPapers(papersWithContent);
+        setLoading(false);
+    }, [firestore]);
 
     useEffect(() => {
-        if (!papers) return;
-
-        const isLoading = pdfCollections.some(c => c.isLoading);
-        setLoading(isLoading);
-
-        if (!isLoading) {
-            const pdfsData: Record<string, Pdf[]> = {};
-            papers.forEach((paper, index) => {
-                pdfsData[paper.id] = pdfCollections[index].data || [];
-            });
-            setAllPdfs(pdfsData);
+        if (initialPapers) {
+            fetchContent(initialPapers);
         }
-    }, [papers, pdfCollections]);
-
-    return { allPdfs, loading };
+    }, [initialPapers, fetchContent]);
+    
+    return { papers, loading: papersLoading || loading, refetch: () => initialPapers && fetchContent(initialPapers) };
 }
 
 
 export default function HomePage() {
-  const firestore = useFirestore();
   const [searchTerm, setSearchTerm] = useState("");
+  const { papers, loading } = usePapersWithContent();
+  const [openAccordion, setOpenAccordion] = useState<string>("");
 
-  const papersRef = useMemoFirebase(
-    () => query(collection(firestore, "papers"), orderBy("paperNumber")),
-    [firestore]
-  );
-  const { data: papers, isLoading: papersLoading } = useCollection<Paper>(papersRef);
-  
-  const { allPdfs, loading: pdfsLoading } = useAllPdfs(papers);
 
-  const filteredData = useMemo(() => {
+  const filteredPapers = useMemo(() => {
     if (!papers) return [];
-    if (!searchTerm) return papers.map(p => ({ paper: p, pdfs: allPdfs[p.id] || [] }));
+    if (!searchTerm) return papers;
 
     const lowercasedFilter = searchTerm.toLowerCase();
-    const result: { paper: Paper, pdfs: Pdf[] }[] = [];
 
-    papers.forEach(paper => {
-        const matchingPdfs = (allPdfs[paper.id] || []).filter(pdf => 
-            pdf.name.toLowerCase().includes(lowercasedFilter) || 
-            pdf.description.toLowerCase().includes(lowercasedFilter)
-        );
-
-        if (paper.name.toLowerCase().includes(lowercasedFilter) || matchingPdfs.length > 0) {
-            result.push({
-                paper: paper,
-                pdfs: paper.name.toLowerCase().includes(lowercasedFilter) ? (allPdfs[paper.id] || []) : matchingPdfs
-            });
+    return papers.map(paper => {
+        // If paper name matches, return it with all its content
+        if (paper.name.toLowerCase().includes(lowercasedFilter) || paper.description.toLowerCase().includes(lowercasedFilter)) {
+            return paper;
         }
-    });
 
-    return result;
-  }, [searchTerm, papers, allPdfs]);
+        // Otherwise, filter tabs and pdfs
+        const filteredTabs = paper.tabs?.map(tab => {
+            if (tab.name.toLowerCase().includes(lowercasedFilter)) {
+                return tab;
+            }
 
-  const isLoading = papersLoading || pdfsLoading;
+            const matchingPdfs = tab.pdfs?.filter(pdf => 
+                pdf.name.toLowerCase().includes(lowercasedFilter) || 
+                pdf.description.toLowerCase().includes(lowercasedFilter)
+            );
+            
+            if (matchingPdfs && matchingPdfs.length > 0) {
+                return { ...tab, pdfs: matchingPdfs };
+            }
+            return null;
+        }).filter((t): t is Tab => t !== null);
+
+        if (filteredTabs && filteredTabs.length > 0) {
+            return { ...paper, tabs: filteredTabs };
+        }
+
+        return null;
+    }).filter((p): p is Paper => p !== null);
+
+  }, [searchTerm, papers]);
+
+  useEffect(() => {
+    // Open the first search result automatically
+    if (searchTerm && filteredPapers.length > 0) {
+      setOpenAccordion(filteredPapers[0].id);
+    } else {
+      setOpenAccordion("");
+    }
+  }, [searchTerm, filteredPapers]);
+
 
   return (
     <AppLayout>
@@ -158,14 +217,14 @@ export default function HomePage() {
         </div>
 
         <div className="flex-1 p-4 sm:p-6 pt-0 overflow-y-auto">
-           {isLoading && <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin text-primary" /></div>}
-           {!isLoading && filteredData.length === 0 && (
+           {loading && <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin text-primary" /></div>}
+           {!loading && filteredPapers.length === 0 && (
              <p className="text-center text-muted-foreground p-8">
                {searchTerm ? `"${searchTerm}" के लिए कोई परिणाम नहीं मिला।` : "अभी कोई पेपर उपलब्ध नहीं है। कृपया बाद में जांचें।"}
              </p>
            )}
-          <Accordion type="multiple" className="w-full space-y-4">
-            {filteredData.map(({ paper, pdfs }, index) => {
+          <Accordion type="single" collapsible className="w-full space-y-4" value={openAccordion} onValueChange={setOpenAccordion}>
+            {filteredPapers.map((paper, index) => {
               const gradients = [
                 'from-blue-500 to-indigo-600',
                 'from-purple-500 to-pink-600',
@@ -175,7 +234,7 @@ export default function HomePage() {
                 'from-rose-500 to-fuchsia-600',
               ];
               const paperWithGradient = { ...paper, gradient: gradients[index % gradients.length]};
-              return <PaperItem key={paper.id} paper={paperWithGradient} pdfs={pdfs} isLoading={pdfsLoading} open={!!searchTerm} />
+              return <PaperItem key={paper.id} paper={paperWithGradient} openAccordion={openAccordion} setOpenAccordion={setOpenAccordion} />
             })}
           </Accordion>
         </div>

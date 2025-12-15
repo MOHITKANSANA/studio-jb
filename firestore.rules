@@ -9,17 +9,16 @@
  *
  * Data Structure:
  * - /users/{userId}: Stores private user profile data. Each user can only access their own document.
- * - /roles_admin/{userId}: A private collection used as a lookup table to grant admin rights.
- * - /papers/{paperId}: A public collection of subjects or papers, readable by anyone.
- * - /papers/{paperId}/pdfDocuments/{pdfDocumentId}: A public subcollection of PDF documents, readable by anyone.
+ * - /roles_admin/{userId}: A private collection used as a lookup to grant admin rights.
+ * - /papers/{paperId}: Public collection of subjects.
+ * - /papers/{paperId}/tabs/{tabId}: Public collection of tabs/chapters within a paper.
+ * - /papers/{paperId}/tabs/{tabId}/pdfDocuments/{pdfDocumentId}: Public collection of PDFs within a tab.
  *
  * Key Security Decisions:
  * - Admin-Only Content Management: All creation, modification, and deletion of public content
- *   (Papers and PdfDocuments) is restricted to users with the Admin role.
- * - Strict User Data Privacy: A user's profile data in `/users/{userId}` is private. It can only
- *   be created, read, and modified by the user themselves. The full list of users is not queryable.
- * - Public Read Access: All educational content (`papers` and `pdfDocuments`) is publicly readable
- *   to allow any visitor or user to browse the application's offerings without being signed in.
+ *   (Papers, Tabs, PdfDocuments) is restricted to users with the Admin role.
+ * - Strict User Data Privacy: A user's profile data in `/users/{userId}` is private.
+ * - Public Read Access: All educational content is publicly readable.
  * - Default Deny: Access is denied by default. All permissions must be explicitly granted.
  */
 rules_version = '2';
@@ -30,34 +29,18 @@ service cloud.firestore {
     // Helper Functions
     // --------------------------------------------------------------------
 
-    /**
-     * Checks if the user is authenticated.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Checks if the requesting user's UID matches the provided userId.
-     * This is the foundation for document ownership.
-     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /**
-     * Checks if the requesting user has administrative privileges.
-     * Admin status is granted if a document with the user's UID exists
-     * in the private `/roles_admin` collection.
-     */
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
-    /**
-     * Ensures that a document being updated or deleted actually exists.
-     * Prevents writes to non-existent paths.
-     */
     function documentExists() {
       return resource != null;
     }
@@ -65,14 +48,6 @@ service cloud.firestore {
     // --------------------------------------------------------------------
     // User Profiles (/users/{userId})
     // --------------------------------------------------------------------
-
-    /**
-     * @description Manages user profile documents.
-     * @path /users/{userId}
-     * @allow (create) An authenticated user creating their own profile document.
-     * @deny (list) Any user, including admins, attempting to list all user profiles.
-     * @principle Restricts access to a user's own data tree, enforcing privacy.
-     */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
@@ -84,14 +59,6 @@ service cloud.firestore {
     // --------------------------------------------------------------------
     // Admin Roles (/roles_admin/{userId})
     // --------------------------------------------------------------------
-
-    /**
-     * @description Manages admin role grants. This collection is write-only for admins and not readable.
-     * @path /roles_admin/{userId}
-     * @allow (create) An existing admin granting admin rights to another user.
-     * @deny (get) Any user attempting to read an admin role document directly.
-     * @principle Secures the admin-granting mechanism itself. Rules rely on `exists()` not `get()`.
-     */
     match /roles_admin/{userId} {
       allow get: if false;
       allow list: if false;
@@ -103,38 +70,28 @@ service cloud.firestore {
     // --------------------------------------------------------------------
     // Papers (/papers/{paperId})
     // --------------------------------------------------------------------
-
-    /**
-     * @description Manages paper/subject documents. Readable by anyone, writable only by admins.
-     * @path /papers/{paperId}
-     * @allow (get, list) Any user (anonymous or signed-in) reading paper information.
-     * @deny (create) A non-admin user attempting to create a new paper.
-     * @principle Provides public read access for content while securing writes to admins.
-     */
     match /papers/{paperId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin() && documentExists();
-      allow delete: if isAdmin() && documentExists();
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // --------------------------------------------------------------------
+    // Tabs (/papers/{paperId}/tabs/{tabId})
+    // --------------------------------------------------------------------
+    match /papers/{paperId}/tabs/{tabId} {
+        allow get, list: if true;
+        allow create: if isAdmin() && request.resource.data.paperId == paperId;
+        allow update: if isAdmin() && documentExists() && request.resource.data.paperId == resource.data.paperId;
+        allow delete: if isAdmin() && documentExists();
     }
 
     // --------------------------------------------------------------------
-    // PDF Documents (/papers/{paperId}/pdfDocuments/{pdfDocumentId})
+    // PDF Documents (/papers/{paperId}/tabs/{tabId}/pdfDocuments/{pdfDocumentId})
     // --------------------------------------------------------------------
-
-    /**
-     * @description Manages PDF documents nested under a specific paper.
-     * @path /papers/{paperId}/pdfDocuments/{pdfDocumentId}
-     * @allow (list) Any user (anonymous or signed-in) listing PDFs for a given paper.
-     * @deny (update) A non-admin user attempting to change a PDF link.
-     * @principle Enforces relational integrity and admin-only writes for nested content.
-     */
-    match /papers/{paperId}/pdfDocuments/{pdfDocumentId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isAdmin() && request.resource.data.paperId == paperId;
-      allow update: if isAdmin() && documentExists() && request.resource.data.paperId == resource.data.paperId;
+    match /papers/{paperId}/tabs/{tabId}/pdfDocuments/{pdfDocumentId} {
+      allow get, list: if true;
+      allow create: if isAdmin() && request.resource.data.paperId == paperId && request.resource.data.tabId == tabId;
+      allow update: if isAdmin() && documentExists() && request.resource.data.paperId == resource.data.paperId && request.resource.data.tabId == resource.data.tabId;
       allow delete: if isAdmin() && documentExists();
     }
   }

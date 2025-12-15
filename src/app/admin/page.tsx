@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   getDoc,
   query,
+  orderBy,
 } from "firebase/firestore";
 import {
   useFirestore,
@@ -32,17 +33,23 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Book, Users, DollarSign, Lock, Unlock, BarChart, PlusCircle, LoaderCircle, Send } from "lucide-react";
+import { FileText, Book, Users, DollarSign, Lock, Unlock, BarChart, PlusCircle, LoaderCircle, Send, Library, FilePlus, FolderPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { cn } from "@/lib/utils";
-import type { Paper, Pdf } from "@/lib/types";
+import type { Paper, Pdf, Tab, User as AppUser } from "@/lib/types";
 
 const paperSchema = z.object({
   name: z.string().min(1, "पेपर का नाम आवश्यक है।"),
-  paperNumber: z.coerce.number().min(1, "पेपर नंबर आवश्यक है।"),
+  description: z.string().max(60, "विवरण 60 अक्षरों से कम होना चाहिए।").min(1, "विवरण आवश्यक है।"),
+});
+
+const tabSchema = z.object({
+  name: z.string().min(1, "टैब का नाम आवश्यक है।"),
+  paperId: z.string().min(1, "कृपया एक पेपर चुनें।"),
 });
 
 const pdfSchema = z.object({
@@ -50,7 +57,8 @@ const pdfSchema = z.object({
   description: z.string().min(1, "PDF का विवरण आवश्यक है।"),
   googleDriveLink: z.string().url("कृपया एक मान्य गूगल ड्राइव लिंक डालें।"),
   paperId: z.string().min(1, "कृपया एक पेपर चुनें।"),
-  accessType: z.enum(["Free", "Paid"]),
+  tabId: z.string().min(1, "कृपया एक टैब चुनें।"),
+  accessType: z.enum(["Free", "Paid"], { required_error: "एक्सेस प्रकार चुनना आवश्यक है।" }),
 });
 
 const notificationSchema = z.object({
@@ -133,40 +141,39 @@ function AdminDashboard() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const revenueChart = PlaceHolderImages.find(img => img.id === 'chart-placeholder-1');
-  const [isPaperSubmitting, setIsPaperSubmitting] = useState(false);
-  const [isPdfSubmitting, setIsPdfSubmitting] = useState(false);
-  const [isNotificationSubmitting, setIsNotificationSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const papersRef = useMemoFirebase(() => query(collection(firestore, "papers")), [firestore]);
-  const { data: papers, isLoading: papersLoading } = useCollection<Paper>(papersRef);
+  const papersQuery = useMemoFirebase(() => query(collection(firestore, "papers"), orderBy("paperNumber")), [firestore]);
+  const { data: papers, isLoading: papersLoading } = useCollection<Paper>(papersQuery);
 
-  const usersRef = useMemoFirebase(() => query(collection(firestore, "users")), [firestore]);
-  const { data: users, isLoading: usersLoading } = useCollection(usersRef);
+  const usersQuery = useMemoFirebase(() => query(collection(firestore, "users")), [firestore]);
+  const { data: users, isLoading: usersLoading } = useCollection<AppUser>(usersQuery);
 
-  const allPdfsQuery = useMemoFirebase(() => {
-    if (!papers || papers.length === 0) return null;
-    // Note: This is a simplified query. For a real app, you'd fetch PDFs for each paper.
-    // This approach has limitations and is for dashboard stats only.
-    return collection(firestore, 'papers', papers[0].id, 'pdfDocuments');
-  }, [papers, firestore]);
-  const { data: pdfsData, isLoading: pdfsLoading } = useCollection<Pdf>(allPdfsQuery);
-
+  // For PDF counts, you might need a more sophisticated approach like cloud functions for large datasets
+  // This is a simplified client-side estimation.
+  const [pdfCount, setPdfCount] = useState({ free: 0, paid: 0, total: 0 });
 
   const paperForm = useForm<z.infer<typeof paperSchema>>({
     resolver: zodResolver(paperSchema),
-    defaultValues: { name: "", paperNumber: (papers?.length || 0) + 1 },
+    defaultValues: { name: "", description: "" },
+  });
+
+  const tabForm = useForm<z.infer<typeof tabSchema>>({
+    resolver: zodResolver(tabSchema),
+    defaultValues: { name: "", paperId: "" },
   });
 
   const pdfForm = useForm<z.infer<typeof pdfSchema>>({
     resolver: zodResolver(pdfSchema),
-    defaultValues: {
-        name: "",
-        description: "",
-        googleDriveLink: "",
-        paperId: "",
-        accessType: "Free",
-    }
+    defaultValues: { name: "", description: "", googleDriveLink: "", paperId: "", tabId: "", accessType: "Free" }
   });
+  
+  const [selectedPaperForTabs, setSelectedPaperForTabs] = useState<string>("");
+  const tabsForSelectedPaperQuery = useMemoFirebase(() => 
+    selectedPaperForTabs ? query(collection(firestore, `papers/${selectedPaperForTabs}/tabs`), orderBy("name")) : null
+  , [firestore, selectedPaperForTabs]);
+  const { data: tabsForSelectedPaper, isLoading: tabsLoading } = useCollection<Tab>(tabsForSelectedPaperQuery);
+
 
   const notificationForm = useForm<z.infer<typeof notificationSchema>>({
     resolver: zodResolver(notificationSchema),
@@ -174,53 +181,52 @@ function AdminDashboard() {
   });
   
   async function onAddPaper(values: z.infer<typeof paperSchema>) {
-    setIsPaperSubmitting(true);
+    setIsSubmitting(true);
     const newPaper = {
       ...values,
+      paperNumber: (papers?.length || 0) + 1,
       createdAt: serverTimestamp(),
     };
     await addDocumentNonBlocking(collection(firestore, "papers"), newPaper);
     toast({ title: "सफलता!", description: `पेपर "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
-    paperForm.reset({ name: "", paperNumber: (papers?.length || 0) + 2 });
-    setIsPaperSubmitting(false);
+    paperForm.reset();
+    setIsSubmitting(false);
+  }
+
+  async function onAddTab(values: z.infer<typeof tabSchema>) {
+    setIsSubmitting(true);
+    const tabsCollectionRef = collection(firestore, `papers/${values.paperId}/tabs`);
+    const newTab = { ...values, createdAt: serverTimestamp() };
+    await addDocumentNonBlocking(tabsCollectionRef, newTab);
+    toast({ title: "सफलता!", description: `टैब "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
+    tabForm.reset();
+    setIsSubmitting(false);
   }
 
   async function onAddPdf(values: z.infer<typeof pdfSchema>) {
-    setIsPdfSubmitting(true);
-    const pdfsCollectionRef = collection(firestore, "papers", values.paperId, "pdfDocuments");
-    const newPdf = {
-        ...values,
-        createdAt: serverTimestamp(),
-    };
+    setIsSubmitting(true);
+    const pdfsCollectionRef = collection(firestore, `papers/${values.paperId}/tabs/${values.tabId}/pdfDocuments`);
+    const newPdf = { ...values, createdAt: serverTimestamp() };
     await addDocumentNonBlocking(pdfsCollectionRef, newPdf);
     toast({ title: "सफलता!", description: `PDF "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
     pdfForm.reset();
-    setIsPdfSubmitting(false);
+    setIsSubmitting(false);
   }
 
+
   async function onSendNotification(values: z.infer<typeof notificationSchema>) {
-    setIsNotificationSubmitting(true);
+    setIsSubmitting(true);
     console.log("Sending notification:", values);
     // Here you would integrate with a push notification service like FCM
-    // For this example, we'll just show a success toast.
     await new Promise(resolve => setTimeout(resolve, 1000));
     toast({ title: "सफलता!", description: `सूचना "${values.title}" भेज दी गई है।` });
     notificationForm.reset();
-    setIsNotificationSubmitting(false);
+    setIsSubmitting(false);
   }
-
-  // Note: This PDF count is simplistic and only fetches from the first paper for the dashboard.
-  // A full implementation would require more complex queries or data aggregation.
-  const freePdfs = pdfsData?.filter(p => p.accessType === 'Free').length || 0;
-  const paidPdfs = pdfsData?.filter(p => p.accessType === 'Paid').length || 0;
-
-
+  
   const analytics = [
-    { title: "कुल PDF (अनुमानित)", value: (freePdfs + paidPdfs) ?? "...", icon: FileText, gradient: "from-blue-500 to-cyan-400" },
-    { title: "कुल विषय / पेपर", value: papers?.length ?? "...", icon: Book, gradient: "from-purple-500 to-pink-500" },
+    { title: "कुल विषय / पेपर", value: papers?.length ?? "...", icon: Library, gradient: "from-blue-500 to-cyan-400" },
     { title: "कुल यूज़र", value: users?.length ?? "...", icon: Users, gradient: "from-green-500 to-teal-400" },
-    { title: "फ्री PDF (अनुमानित)", value: freePdfs, icon: Unlock, gradient: "from-yellow-500 to-amber-400" },
-    { title: "पेड PDF (अनुमानित)", value: paidPdfs, icon: Lock, gradient: "from-red-500 to-orange-500" },
   ];
 
   const revenue = [
@@ -233,7 +239,7 @@ function AdminDashboard() {
     <div className="p-4 sm:p-6 space-y-6 bg-muted/20">
       <h1 className="font-headline text-3xl font-bold text-foreground">Admin Dashboard – Smart Study MPSE</h1>
       
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {analytics.map(item => (
             <Card key={item.title} className={cn("text-white border-0 shadow-lg", item.gradient)}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -245,73 +251,87 @@ function AdminDashboard() {
                 </CardContent>
             </Card>
         ))}
+         {revenue.map(item => (
+             <div key={item.title} className="flex items-center p-4 bg-card rounded-lg shadow-md">
+                <div className={cn("p-3 rounded-full mr-4 bg-primary/10", item.color)}>
+                    <item.icon className="h-6 w-6"/>
+                </div>
+                <div>
+                    <p className="text-sm text-muted-foreground">{item.title}</p>
+                    <p className="text-2xl font-bold text-foreground">{item.value}</p>
+                </div>
+            </div>
+        )).slice(0, 2)}
       </div>
 
-      <Card className="shadow-lg">
+       <Card>
         <CardHeader>
-          <CardTitle>Revenue</CardTitle>
-          <CardDescription>कमाई का विश्लेषण</CardDescription>
+          <CardTitle>कंटेंट मैनेजमेंट</CardTitle>
+          <CardDescription>यहां से पेपर, टैब और PDF जोड़ें।</CardDescription>
         </CardHeader>
         <CardContent>
-            <div className="grid gap-4 md:grid-cols-3 mb-6">
-                {revenue.map(item => (
-                     <div key={item.title} className="flex items-center p-4 bg-muted rounded-lg">
-                        <div className={cn("p-3 rounded-full mr-4 bg-primary/10", item.color)}>
-                            <item.icon className="h-6 w-6"/>
-                        </div>
-                        <div>
-                            <p className="text-sm text-muted-foreground">{item.title}</p>
-                            <p className="text-2xl font-bold text-foreground">{item.value}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
-          {revenueChart && <Image src={revenueChart.imageUrl} alt="Revenue Chart" width={800} height={400} data-ai-hint={revenueChart.imageHint} className="w-full h-auto rounded-lg"/>}
-        </CardContent>
-      </Card>
-      
-      <div className="grid gap-6 md:grid-cols-2">
-          <Card id="add-paper" className="shadow-lg">
-              <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Book/> पेपर / विषय बनाएं</CardTitle>
-              </CardHeader>
-              <CardContent>
-                  <Form {...paperForm}>
-                      <form onSubmit={paperForm.handleSubmit(onAddPaper)} className="space-y-4">
+            <Tabs defaultValue="add-paper">
+                <TabsList className="grid w-full grid-cols-3 bg-muted/50">
+                    <TabsTrigger value="add-paper" className="gradient-button text-white data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform"><Book className="mr-2"/> पेपर / विषय</TabsTrigger>
+                    <TabsTrigger value="add-tab" className="gradient-button text-white data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform"><FolderPlus className="mr-2"/> टैब</TabsTrigger>
+                    <TabsTrigger value="add-pdf" className="gradient-button text-white data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform"><FilePlus className="mr-2"/> PDF</TabsTrigger>
+                </TabsList>
+                <TabsContent value="add-paper" className="mt-6">
+                    <Form {...paperForm}>
+                      <form onSubmit={paperForm.handleSubmit(onAddPaper)} className="space-y-4 max-w-lg mx-auto">
                           <FormField control={paperForm.control} name="name" render={({ field }) => (
-                              <FormItem><FormLabel>Paper का नाम</FormLabel><FormControl><Input placeholder="जैसे: Paper 7" {...field} /></FormControl><FormMessage /></FormItem>
+                              <FormItem><FormLabel>Paper का नाम</FormLabel><FormControl><Input placeholder="जैसे: Paper 7, इतिहास" {...field} /></FormControl><FormMessage /></FormItem>
                           )}/>
-                           <FormField control={paperForm.control} name="paperNumber" render={({ field }) => (
-                              <FormItem><FormLabel>Paper नंबर</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                           <FormField control={paperForm.control} name="description" render={({ field }) => (
+                              <FormItem><FormLabel>Paper का विवरण (संक्षेप में)</FormLabel><FormControl><Input placeholder="जैसे: मध्य प्रदेश का इतिहास" {...field} /></FormControl><FormMessage /></FormItem>
                           )}/>
-                          <Button type="submit" className="w-full gradient-button" disabled={isPaperSubmitting}>
-                            {isPaperSubmitting ? <LoaderCircle className="animate-spin" /> : "नया पेपर जोड़ें"}
+                          <Button type="submit" className="w-full" disabled={isSubmitting}>
+                            {isSubmitting ? <LoaderCircle className="animate-spin" /> : "नया पेपर सेव करें"}
                           </Button>
                       </form>
                   </Form>
-              </CardContent>
-          </Card>
-          <Card id="add-pdf" className="shadow-lg">
-              <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><PlusCircle/> नया PDF जोड़ें</CardTitle>
-              </CardHeader>
-              <CardContent>
-                   <Form {...pdfForm}>
-                      <form onSubmit={pdfForm.handleSubmit(onAddPdf)} className="space-y-4">
-                          <FormField control={pdfForm.control} name="name" render={({ field }) => (
-                              <FormItem><FormLabel>PDF का नाम</FormLabel><FormControl><Input placeholder="जैसे: इतिहास के नोट्स" {...field} /></FormControl><FormMessage /></FormItem>
-                          )}/>
-                          <FormField control={pdfForm.control} name="description" render={({ field }) => (
-                              <FormItem><FormLabel>PDF का डिस्क्रिप्शन</FormLabel><FormControl><Input placeholder="संक्षिप्त विवरण" {...field} /></FormControl><FormMessage /></FormItem>
-                          )}/>
-                          <FormField control={pdfForm.control} name="googleDriveLink" render={({ field }) => (
-                              <FormItem><FormLabel>Google Drive PDF Link</FormLabel><FormControl><Input placeholder="https://drive.google.com/..." {...field} /></FormControl><FormMessage /></FormItem>
-                          )}/>
-                           <FormField control={pdfForm.control} name="paperId" render={({ field }) => (
-                              <FormItem><FormLabel>Paper चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}>
+                </TabsContent>
+                 <TabsContent value="add-tab" className="mt-6">
+                    <Form {...tabForm}>
+                      <form onSubmit={tabForm.handleSubmit(onAddTab)} className="space-y-4 max-w-lg mx-auto">
+                           <FormField control={tabForm.control} name="paperId" render={({ field }) => (
+                              <FormItem><FormLabel>किस Paper में टैब जोड़ना है?</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl><SelectTrigger><SelectValue placeholder="एक पेपर चुनें" /></SelectTrigger></FormControl>
                                 <SelectContent>{papers && papers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
                               </Select><FormMessage /></FormItem>
+                          )}/>
+                          <FormField control={tabForm.control} name="name" render={({ field }) => (
+                              <FormItem><FormLabel>टैब का नाम</FormLabel><FormControl><Input placeholder="जैसे: अध्याय 1, प्राचीन इतिहास" {...field} /></FormControl><FormMessage /></FormItem>
+                          )}/>
+                          <Button type="submit" className="w-full" disabled={isSubmitting}>
+                            {isSubmitting ? <LoaderCircle className="animate-spin" /> : "नया टैब सेव करें"}
+                          </Button>
+                      </form>
+                  </Form>
+                </TabsContent>
+                 <TabsContent value="add-pdf" className="mt-6">
+                   <Form {...pdfForm}>
+                      <form onSubmit={pdfForm.handleSubmit(onAddPdf)} className="space-y-4 max-w-lg mx-auto">
+                          <FormField control={pdfForm.control} name="paperId" render={({ field }) => (
+                              <FormItem><FormLabel>Paper चुनें</FormLabel><Select onValueChange={(value) => { field.onChange(value); setSelectedPaperForTabs(value); pdfForm.resetField("tabId"); }} defaultValue={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="पहले एक पेपर चुनें" /></SelectTrigger></FormControl>
+                                <SelectContent>{papersLoading ? <SelectItem value="loading" disabled>लोड हो रहा है...</SelectItem> : papers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                              </Select><FormMessage /></FormItem>
+                          )}/>
+                           <FormField control={pdfForm.control} name="tabId" render={({ field }) => (
+                              <FormItem><FormLabel>टैब चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedPaperForTabs || tabsLoading}>
+                                <FormControl><SelectTrigger><SelectValue placeholder={tabsLoading ? "टैब लोड हो रहे हैं..." : "फिर एक टैब चुनें"} /></SelectTrigger></FormControl>
+                                <SelectContent>{tabsForSelectedPaper?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                              </Select><FormMessage /></FormItem>
+                          )}/>
+                          <FormField control={pdfForm.control} name="name" render={({ field }) => (
+                              <FormItem><FormLabel>PDF का नाम</FormLabel><FormControl><Input placeholder="जैसे: इतिहास के महत्वपूर्ण नोट्स" {...field} /></FormControl><FormMessage /></FormItem>
+                          )}/>
+                          <FormField control={pdfForm.control} name="description" render={({ field }) => (
+                              <FormItem><FormLabel>PDF का डिस्क्रिप्शन</FormLabel><FormControl><Input placeholder="इसमें महत्वपूर्ण तिथियां हैं" {...field} /></FormControl><FormMessage /></FormItem>
+                          )}/>
+                          <FormField control={pdfForm.control} name="googleDriveLink" render={({ field }) => (
+                              <FormItem><FormLabel>Google Drive PDF Link</FormLabel><FormControl><Input placeholder="https://drive.google.com/..." {...field} /></FormControl><FormMessage /></FormItem>
                           )}/>
                           <FormField control={pdfForm.control} name="accessType" render={({ field }) => (
                               <FormItem><FormLabel>Access Type चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -319,14 +339,16 @@ function AdminDashboard() {
                                 <SelectContent><SelectItem value="Free">Free</SelectItem><SelectItem value="Paid">Paid</SelectItem></SelectContent>
                               </Select><FormMessage /></FormItem>
                           )}/>
-                          <Button type="submit" className="w-full gradient-button" disabled={isPdfSubmitting}>
-                            {isPdfSubmitting ? <LoaderCircle className="animate-spin" /> : "Save PDF"}
+                          <Button type="submit" className="w-full" disabled={isSubmitting}>
+                            {isSubmitting ? <LoaderCircle className="animate-spin" /> : "Save PDF"}
                           </Button>
                       </form>
                   </Form>
-              </CardContent>
-          </Card>
-      </div>
+                </TabsContent>
+            </Tabs>
+        </CardContent>
+      </Card>
+      
       <Card id="send-notification" className="shadow-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Send /> मैन्युअल नोटिफिकेशन भेजें</CardTitle>
@@ -356,8 +378,8 @@ function AdminDashboard() {
                   <FormMessage />
                 </FormItem>
               )} />
-              <Button type="submit" className="w-full gradient-button" disabled={isNotificationSubmitting}>
-                {isNotificationSubmitting ? <LoaderCircle className="animate-spin" /> : "अभी भेजें"}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? <LoaderCircle className="animate-spin" /> : "अभी भेजें"}
               </Button>
             </form>
           </Form>
