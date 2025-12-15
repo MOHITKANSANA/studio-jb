@@ -1,8 +1,6 @@
 
 "use client";
 
-import React, "use client";
-
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Lock, File as FileIcon, Search as SearchIcon, LoaderCircle } from "lucide-react";
