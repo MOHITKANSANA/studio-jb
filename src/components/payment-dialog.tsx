@@ -54,7 +54,7 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
             key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
             amount: item.price * 100, // amount in the smallest currency unit
             currency: "INR",
-            name: 'MPPSC Mains & Civil Service Notes',
+            name: 'MPPSC & Civil Notes',
             description: `Payment for ${item.name}`,
             receipt: `receipt_${item.id}_${uuidv4()}`,
             handler: function (response: any) {

@@ -361,7 +361,7 @@ function AdminDashboard() {
   return (
     <>
     <div className="p-4 sm:p-6 space-y-6 bg-muted/20">
-      <h1 className="font-headline text-3xl font-bold text-foreground">Admin Dashboard – MPPSC Mains & Civil Service Notes</h1>
+      <h1 className="font-headline text-3xl font-bold text-foreground">Admin Dashboard – MPPSC & Civil Notes</h1>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {analytics.map(item => <Card key={item.title} className={cn("text-white border-0 shadow-lg", item.gradient)}><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">{item.title}</CardTitle><item.icon className="h-5 w-5 opacity-80" /></CardHeader><CardContent><div className="text-3xl font-bold">{item.value}</div></CardContent></Card>)}
         {revenue.map(item => <div key={item.title} className="flex items-center p-4 bg-card rounded-lg shadow-md"><div className={cn("p-3 rounded-full mr-4 bg-primary/10", item.color)}><item.icon className="h-6 w-6"/></div><div><p className="text-sm text-muted-foreground">{item.title}</p><p className="text-2xl font-bold text-foreground">{item.value}</p></div></div>)}

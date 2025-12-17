@@ -71,7 +71,7 @@ export default function LoginPage() {
           <div className="mb-4 p-4 rounded-2xl bg-gradient-to-br from-primary via-accent to-primary/50">
             <BookOpenCheck className="w-16 h-16 text-white" />
           </div>
-          <h1 className="font-headline text-3xl font-bold gradient-text">MPPSC Mains & Civil Service Notes में आपका स्वागत है</h1>
+          <h1 className="font-headline text-3xl font-bold gradient-text">MPPSC & Civil Notes में आपका स्वागत है</h1>
         </div>
         <AuthForm />
       </div>
