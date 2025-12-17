@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { collection, query, where, orderBy, doc, getDocs } from 'firebase/firestore';
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { AppLayout } from '@/components/app-layout';
@@ -95,10 +95,11 @@ function TopicItem({ topic, index, pdfs, isLoadingPdfs }: { topic: Tab; index: n
     );
 }
 
-export default function PaperDetailPage({ params }: { params: { paperId: string } }) {
+export default function PaperDetailPage() {
     const firestore = useFirestore();
     const router = useRouter();
-    const paperId = params.paperId;
+    const params = useParams();
+    const paperId = params.paperId as string;
     
     const paperRef = useMemoFirebase(() => doc(firestore, 'papers', paperId), [firestore, paperId]);
     const { data: paper, isLoading: isLoadingPaper } = useDoc<Paper>(paperRef);
