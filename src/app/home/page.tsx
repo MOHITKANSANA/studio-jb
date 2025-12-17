@@ -9,34 +9,93 @@ import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { AppLayout } from "@/components/app-layout";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
-import type { Paper, Combo } from "@/lib/types";
+import type { Paper, Combo, Tab } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
+import PaymentDialog from "@/components/payment-dialog";
 
-function PaperItem({ paper, gradient }: { paper: Paper; gradient: string }) {
+
+const topicGradients = [
+  'from-blue-500 to-indigo-600',
+  'from-purple-500 to-pink-600',
+  'from-green-500 to-teal-600',
+  'from-orange-500 to-red-600',
+  'from-cyan-500 to-light-blue-600',
+  'from-rose-500 to-fuchsia-600',
+];
+
+function TopicItem({ topic, index }: { topic: Tab; index: number }) {
     const router = useRouter();
+
+    const handleClick = () => {
+        router.push(`/papers/${topic.paperId}?tab=${topic.id}`);
+    };
 
     return (
         <div 
             className={cn(
                 "w-full rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer p-4 flex items-center justify-between text-white",
-                gradient
+                topicGradients[index % topicGradients.length]
             )}
-            onClick={() => router.push(`/papers/${paper.id}`)}
+            onClick={handleClick}
         >
             <div>
-                <h3 className="font-headline text-xl font-bold">{paper.name}</h3>
-                <p className="text-xs text-white/80 font-normal mt-1">{paper.description}</p>
+                <h3 className="font-headline text-lg font-bold">{topic.name}</h3>
             </div>
-            <ChevronRight className="w-8 h-8" />
+            <ChevronRight className="w-6 h-6" />
         </div>
     );
 }
 
+function TopicsForPaper({ paperId }: { paperId: string }) {
+    const firestore = useFirestore();
+    const topicsQuery = useMemoFirebase(() => 
+        query(collection(firestore, `papers/${paperId}/tabs`), orderBy("name")), 
+        [firestore, paperId]
+    );
+    const { data: topics, isLoading } = useCollection<Tab>(topicsQuery);
+
+    if (isLoading) {
+        return <div className="flex justify-center p-4"><LoaderCircle className="w-6 h-6 animate-spin" /></div>;
+    }
+
+    if (!topics || topics.length === 0) {
+        return <p className="p-4 text-center text-muted-foreground">इस विषय में कोई टॉपिक नहीं है।</p>;
+    }
+
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
+            {topics.map((topic, index) => (
+                <TopicItem key={topic.id} topic={topic} index={index} />
+            ))}
+        </div>
+    );
+}
+
+
+function PaperItem({ paper }: { paper: Paper }) {
+    return (
+        <AccordionItem value={paper.id} className="border-none">
+            <Card className="overflow-hidden shadow-md border-0 transition-all duration-300 ease-in-out hover:shadow-xl bg-card">
+                 <AccordionTrigger className={cn("p-4 text-left hover:no-underline")}>
+                    <div className="flex-1">
+                        <h3 className="font-headline text-xl font-bold text-foreground">{paper.name}</h3>
+                         <p className="text-xs text-muted-foreground font-normal mt-1">{paper.description}</p>
+                    </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                    <TopicsForPaper paperId={paper.id} />
+                </AccordionContent>
+             </Card>
+        </AccordionItem>
+    );
+}
+
 function ComboItem({ combo, index }: { combo: Combo; index: number }) {
-    const { toast } = useToast();
-    const router = useRouter();
+    const [dialogOpen, setDialogOpen] = useState(false);
     const isPaid = combo.accessType === 'Paid';
 
     const comboGradients = [
@@ -49,21 +108,21 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
-        if (isPaid) {
-            toast({
-                variant: "destructive",
-                title: `"${combo.name}" एक पेड कॉम्बो है`,
-                description: `कीमत: ₹${combo.price || 0}. खरीदने के लिए आगे बढ़ें।`,
-            });
-        } else {
-             router.push(`/combos/${combo.id}`);
-        }
+        setDialogOpen(true);
     };
 
     return (
+        <>
         <a href="#" onClick={handleClick} className="block group">
-            <Card className={cn("text-white border-0 shadow-lg hover:shadow-2xl transition-all duration-300 transform group-hover:scale-105 aspect-square flex flex-col justify-between p-4", gradientClass)}>
-                <CardHeader className="p-0">
+            <Card className="text-white border-0 shadow-lg hover:shadow-2xl transition-all duration-300 transform group-hover:scale-105 aspect-square flex flex-col justify-between p-4 overflow-hidden relative">
+                 {combo.imageUrl ? (
+                    <Image src={combo.imageUrl} alt={combo.name} layout="fill" objectFit="cover" className="opacity-80 group-hover:opacity-100 transition-opacity" />
+                 ) : (
+                    <div className={cn("absolute inset-0", gradientClass)} />
+                 )}
+                 <div className="absolute inset-0 bg-black/40"></div>
+
+                <CardHeader className="p-0 z-10">
                     <div className="flex justify-between items-start">
                         <CardTitle className="text-base font-bold flex items-center gap-2"><Cloud className="w-5 h-5"/>{combo.name}</CardTitle>
                         {isPaid 
@@ -72,16 +131,23 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
                         }
                     </div>
                 </CardHeader>
-                <CardContent className="p-0">
-                    <CardDescription className="text-white/80 text-xs line-clamp-2">{combo.description}</CardDescription>
-                    {isPaid && (
-                        <div className="text-lg font-bold mt-2">
-                            ₹{combo.price}
+                <CardContent className="p-0 z-10">
+                    {!combo.imageUrl && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <h2 className="text-2xl font-bold text-white/50">MPPSC Notes</h2>
                         </div>
                     )}
+                    <CardDescription className="text-white/80 text-xs line-clamp-2">{combo.description}</CardDescription>
                 </CardContent>
             </Card>
         </a>
+        <PaymentDialog 
+            isOpen={dialogOpen} 
+            setIsOpen={setDialogOpen} 
+            item={combo}
+            itemType="combo"
+        />
+        </>
     );
 }
 
@@ -117,20 +183,6 @@ export default function HomePage() {
 
   }, [searchTerm, papers, recentCombos]);
   
-  const paperGradients = [
-    'from-blue-500 to-indigo-600',
-    'from-purple-500 to-pink-600',
-    'from-green-500 to-teal-600',
-    'from-orange-500 to-red-600',
-    'from-cyan-500 to-light-blue-600',
-    'from-rose-500 to-fuchsia-600',
-  ];
-
-  const papersWithGradients = (filteredItems.papers || []).map((paper, index) => ({
-    ...paper,
-    gradient: paperGradients[index % paperGradients.length],
-  }));
-
   const isLoading = papersLoading || combosLoading;
 
   return (
@@ -151,20 +203,22 @@ export default function HomePage() {
         <div className="flex-1 p-4 sm:p-6 pt-0 overflow-y-auto">
            {isLoading && <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin text-primary" /></div>}
            
-           {!isLoading && papersWithGradients.length === 0 && (filteredItems.combos || []).length === 0 && (
+           {!isLoading && (filteredItems.papers || []).length === 0 && (filteredItems.combos || []).length === 0 && (
              <p className="text-center text-muted-foreground p-8">
                {searchTerm ? `"${searchTerm}" के लिए कोई परिणाम नहीं मिला।` : "अभी कोई कंटेंट उपलब्ध नहीं है। कृपया बाद में जांचें।"}
              </p>
            )}
 
            {/* Papers Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {papersWithGradients.map((paper, index) => (
-                    <div key={paper.id} className={cn({ 'md:col-span-2': papersWithGradients.length % 2 !== 0 && index === papersWithGradients.length - 1 })}>
-                         <PaperItem paper={paper} gradient={paper.gradient} />
-                    </div>
-                ))}
-            </div>
+            <Accordion type="single" collapsible className="w-full space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(filteredItems.papers || []).map((paper, index) => (
+                      <div key={paper.id} className={cn({ 'md:col-span-2': filteredItems.papers.length % 2 !== 0 && index === filteredItems.papers.length - 1 })}>
+                           <PaperItem paper={paper} />
+                      </div>
+                  ))}
+              </div>
+            </Accordion>
 
 
           {/* Combos Section */}

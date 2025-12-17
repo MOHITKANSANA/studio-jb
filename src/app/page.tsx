@@ -21,11 +21,11 @@ export default function SplashPage() {
         <div className="inline-block p-4 bg-white/10 rounded-2xl mb-6 shadow-lg">
           <BookOpenCheck className="w-20 h-20 text-white" />
         </div>
-        <h1 className="font-headline text-5xl font-bold text-white tracking-tight">
+        <h1 className="font-headline text-4xl sm:text-5xl font-bold text-white tracking-tight">
           MPPSC Mains & Civil Service Notes
         </h1>
         <p className="mt-4 text-lg text-white/80">
-          MPSE की तैयारी अब और भी स्मार्ट
+          आपकी सफलता का साथी
         </p>
       </div>
       <div className="absolute bottom-5 text-white/50 text-sm">

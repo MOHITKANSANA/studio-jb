@@ -76,7 +76,7 @@
         },
         "description": {
           "type": "string",
-          "description": "A short description of the paper (max 10 words)."
+          "description": "A short description of the paper (max 100 words)."
         },
         "paperNumber": {
           "type": "number",
@@ -149,6 +149,10 @@
         "accessType": {
           "type": "string",
           "description": "The access type of the PDF document (Free or Paid)."
+        },
+        "price": {
+          "type": "number",
+          "description": "The price of the PDF if it is 'Paid'."
         }
       },
       "required": [
@@ -194,6 +198,11 @@
             "type": "string"
           },
           "description": "An array of PdfDocument IDs included in this combo."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL for the combo's background image.",
+          "format": "uri"
         }
       },
       "required": ["id", "name", "description", "accessType", "pdfIds"]

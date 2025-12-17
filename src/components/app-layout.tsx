@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -55,7 +54,7 @@ import type { User as AppUser } from '@/lib/types';
 
 const menuItems = [
   { icon: Home, label: "होम", href: "/home" },
-  { icon: BookCopy, label: "विषय", href: "/home" },
+  { icon: BookCopy, label: "All Combos", href: "/combos" },
 ];
 
 const bottomMenuItems = [
@@ -122,7 +121,7 @@ function AppSidebar() {
   const { data: appUser } = useDoc<AppUser>(userDocRef);
 
   const handleLogout = async () => {
-    localStorage.removeItem("admin_verified");
+    localStorage.removeItem("admin_security_verified");
     await auth.signOut();
     router.push('/login');
   };
@@ -243,7 +242,7 @@ function TopBar() {
   const { data: appUser } = useDoc<AppUser>(userDocRef);
   
   const handleLogout = async () => {
-    localStorage.removeItem("admin_verified");
+    localStorage.removeItem("admin_security_verified");
     await auth.signOut();
     router.push('/login');
   };

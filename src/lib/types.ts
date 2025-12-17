@@ -4,6 +4,7 @@ export type PdfDocument = {
   description: string;
   googleDriveLink: string;
   accessType: 'Free' | 'Paid';
+  price?: number; // Price for individual PDF
   paperId: string;
   tabId: string;
   createdAt: any; // Firestore ServerTimestamp
@@ -42,5 +43,6 @@ export type Combo = {
   price?: number;
   pdfIds: string[];
   pdfs?: PdfDocument[]; // Populated on the client
+  imageUrl?: string;
   createdAt: any; // Firestore ServerTimestamp
 };

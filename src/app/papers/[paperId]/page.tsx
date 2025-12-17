@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { collection, query, where, orderBy, doc, getDocs } from 'firebase/firestore';
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { AppLayout } from '@/components/app-layout';
@@ -12,15 +12,7 @@ import { cn } from '@/lib/utils';
 import type { Paper, Tab, PdfDocument } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from '@/components/ui/button';
-
-const topicGradients = [
-  'from-blue-500 to-indigo-600',
-  'from-purple-500 to-pink-600',
-  'from-green-500 to-teal-600',
-  'from-orange-500 to-red-600',
-  'from-cyan-500 to-light-blue-600',
-  'from-rose-500 to-fuchsia-600',
-];
+import PaymentDialog from '@/components/payment-dialog';
 
 const pdfGradients = [
     'dark:from-sky-900/70 dark:to-blue-900/70',
@@ -32,26 +24,23 @@ const pdfGradients = [
 ];
 
 function PdfItem({ pdf, index }: { pdf: PdfDocument; index: number }) {
-    const { toast } = useToast();
     const router = useRouter();
     const isPaid = pdf.accessType === 'Paid';
+    const [dialogOpen, setDialogOpen] = useState(false);
     
     const gradientClass = `bg-gradient-to-r ${pdfGradients[index % pdfGradients.length]}`;
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
         if (isPaid) {
-            toast({
-                variant: "destructive",
-                title: `"${pdf.name}" एक पेड PDF है`,
-                description: "यह PDF पेड है, खरीदने के लिए आगे बढ़ें।",
-            });
+            setDialogOpen(true);
         } else {
             router.push(`/ad-gateway?url=${encodeURIComponent(pdf.googleDriveLink)}`);
         }
     }
 
     return (
+        <>
         <a href="#" onClick={handleClick} className="block">
           <div className={cn("flex items-center p-3 rounded-lg hover:shadow-md transition-all duration-200", gradientClass)}>
             <div className={cn("p-2 rounded-md mr-4", isPaid ? 'bg-amber-500/20' : 'bg-green-500/20')}>
@@ -66,10 +55,26 @@ function PdfItem({ pdf, index }: { pdf: PdfDocument; index: number }) {
             </div>
           </div>
         </a>
+        <PaymentDialog 
+            isOpen={dialogOpen} 
+            setIsOpen={setDialogOpen} 
+            item={pdf}
+            itemType="pdf"
+        />
+        </>
     )
 }
 
 function TopicItem({ topic, index, pdfs, isLoadingPdfs }: { topic: Tab; index: number, pdfs: PdfDocument[] | null, isLoadingPdfs: boolean }) {
+    
+    const topicGradients = [
+        'from-blue-500 to-indigo-600',
+        'from-purple-500 to-pink-600',
+        'from-green-500 to-teal-600',
+        'from-orange-500 to-red-600',
+        'from-cyan-500 to-light-blue-600',
+        'from-rose-500 to-fuchsia-600',
+    ];
     
     return (
         <AccordionItem value={topic.id} className="border-b-0">
@@ -99,7 +104,10 @@ export default function PaperDetailPage() {
     const firestore = useFirestore();
     const router = useRouter();
     const params = useParams();
+    const searchParams = useSearchParams();
+
     const paperId = params.paperId as string;
+    const openTabId = searchParams.get('tab');
     
     const paperRef = useMemoFirebase(() => doc(firestore, 'papers', paperId), [firestore, paperId]);
     const { data: paper, isLoading: isLoadingPaper } = useDoc<Paper>(paperRef);
@@ -109,17 +117,25 @@ export default function PaperDetailPage() {
     
     const [pdfsByTopic, setPdfsByTopic] = useState<Record<string, PdfDocument[]>>({});
     const [loadingPdfs, setLoadingPdfs] = useState<Record<string, boolean>>({});
-    const [openAccordion, setOpenAccordion] = useState<string>('');
+    const [openAccordion, setOpenAccordion] = useState<string>(openTabId || '');
 
-    const fetchPdfsForTopic = async (topicId: string) => {
-        if (pdfsByTopic[topicId]) return;
+    const fetchPdfsForTopic = useCallback(async (topicId: string) => {
+        if (!topicId || pdfsByTopic[topicId]) return;
         setLoadingPdfs(prev => ({...prev, [topicId]: true}));
         const pdfsQuery = query(collection(firestore, `papers/${paperId}/tabs/${topicId}/pdfDocuments`), orderBy('name'));
         const querySnapshot = await getDocs(pdfsQuery);
         const pdfs = querySnapshot.docs.map(doc => ({...doc.data(), id: doc.id} as PdfDocument));
         setPdfsByTopic(prev => ({...prev, [topicId]: pdfs}));
         setLoadingPdfs(prev => ({...prev, [topicId]: false}));
-    }
+    }, [firestore, paperId, pdfsByTopic]);
+
+    useEffect(() => {
+      if (openTabId) {
+        setOpenAccordion(openTabId);
+        fetchPdfsForTopic(openTabId);
+      }
+    }, [openTabId, fetchPdfsForTopic]);
+
 
     const handleAccordionChange = (value: string) => {
         if(value && !pdfsByTopic[value]) {

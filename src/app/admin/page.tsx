@@ -81,6 +81,7 @@ const comboSchema = z.object({
     (a) => parseFloat(z.string().parse(a)),
     z.number().positive("कीमत 0 से ज़्यादा होनी चाहिए।").optional()
   ),
+  imageUrl: z.string().url("कृपया एक मान्य इमेज URL डालें।").optional().or(z.literal('')),
 }).refine(data => data.accessType === 'Free' || (data.price !== undefined && data.price > 0), {
   message: "पेड कॉम्बो के लिए कीमत डालना आवश्यक है।",
   path: ["price"],
@@ -395,6 +396,7 @@ function AdminDashboard() {
                         <FormField control={comboForm.control} name="description" render={({ field }) => (<FormItem><FormLabel>कॉम्बो का विवरण</FormLabel><FormControl><Textarea placeholder="इस कॉम्बो में सभी महत्वपूर्ण विषयों के नोट्स हैं।" {...field}/></FormControl><FormMessage/></FormItem>)}/>
                         <FormField control={comboForm.control} name="accessType" render={({ field }) => (<FormItem><FormLabel>एक्सेस प्रकार</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent><SelectItem value="Free">Free</SelectItem><SelectItem value="Paid">Paid</SelectItem></SelectContent></Select><FormMessage/></FormItem>)}/>
                         {selectedComboAccessType === 'Paid' && <FormField control={comboForm.control} name="price" render={({ field }) => (<FormItem><FormLabel>कीमत (₹ में)</FormLabel><FormControl><Input type="number" placeholder="जैसे: 499" {...field} /></FormControl><FormMessage/></FormItem>)} />}
+                        <FormField control={comboForm.control} name="imageUrl" render={({ field }) => (<FormItem><FormLabel>इमेज URL (वैकल्पिक)</FormLabel><FormControl><Input placeholder="https://example.com/image.png" {...field} /></FormControl><FormMessage /></FormItem>)} />
                         <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="animate-spin"/> : "नया कॉम्बो सेव करें"}</Button>
                       </form></Form>
                     </div>
