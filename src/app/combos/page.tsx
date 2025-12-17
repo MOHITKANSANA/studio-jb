@@ -1,6 +1,8 @@
 
 "use client";
 
+import React, "use client";
+
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Unlock, Search as SearchIcon, LoaderCircle, Cloud } from "lucide-react";
@@ -59,11 +61,6 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
                     </div>
                 </CardHeader>
                 <CardContent className="p-0 z-10 flex flex-col justify-end h-full">
-                     {!combo.imageUrl && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <h2 className="text-lg font-bold text-white/50 text-center px-2">MPPSC & Civil Notes</h2>
-                        </div>
-                    )}
                     <CardDescription className="text-white/80 text-xs line-clamp-2">{combo.description}</CardDescription>
                      {isPaid && (
                         <div className="text-xl font-bold mt-2">
