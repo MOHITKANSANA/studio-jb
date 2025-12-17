@@ -22,8 +22,7 @@ export type Paper = {
   name: string;
   description: string;
   paperNumber: number;
-  gradient?: string; // Optional gradient for styling
-  tabs?: Tab[]; // This will be populated from a subcollection
+  tabs?: Tab[]; // This will be populated on the client
   createdAt: any; // Firestore ServerTimestamp
 };
 
@@ -45,5 +44,3 @@ export type Combo = {
   pdfs?: Pdf[]; // Populated on the client
   createdAt: any; // Firestore ServerTimestamp
 };
-
-    
