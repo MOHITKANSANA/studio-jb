@@ -7,14 +7,22 @@ export type PdfDocument = {
   price?: number; // Price for individual PDF
   paperId: string;
   tabId: string;
+  subFolderId: string;
   createdAt: any; // Firestore ServerTimestamp
 };
+
+export type SubFolder = {
+  id: string;
+  name: string;
+  paperId: string;
+  tabId: string;
+  createdAt: any; // Firestore ServerTimestamp
+}
 
 export type Tab = {
   id: string;
   name: string;
   paperId: string;
-  pdfs?: PdfDocument[];
   createdAt: any; // Firestore ServerTimestamp
 }
 
@@ -23,7 +31,6 @@ export type Paper = {
   name: string;
   description: string;
   paperNumber: number;
-  tabs?: Tab[]; // This will be populated on the client
   createdAt: any; // Firestore ServerTimestamp
 };
 

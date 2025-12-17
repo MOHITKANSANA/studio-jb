@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { collection, query, where, orderBy, doc, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, doc, getDocs } from 'firebase/firestore';
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { AppLayout } from '@/components/app-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { LoaderCircle, BookOpen, FileText, Lock, Unlock, Home, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Paper, Tab, PdfDocument } from '@/lib/types';
+import type { Paper, Tab, PdfDocument, SubFolder } from '@/lib/types';
 import { useToast } from "@/hooks/use-toast";
 import { Button } from '@/components/ui/button';
 import PaymentDialog from '@/components/payment-dialog';
@@ -65,40 +65,35 @@ function PdfItem({ pdf, index }: { pdf: PdfDocument; index: number }) {
     )
 }
 
-function TopicItem({ topic, index, pdfs, isLoadingPdfs }: { topic: Tab; index: number, pdfs: PdfDocument[] | null, isLoadingPdfs: boolean }) {
-    
-    const topicGradients = [
-        'from-blue-500 to-indigo-600',
-        'from-purple-500 to-pink-600',
-        'from-green-500 to-teal-600',
-        'from-orange-500 to-red-600',
-        'from-cyan-500 to-light-blue-600',
-        'from-rose-500 to-fuchsia-600',
+function SubFolderItem({ subFolder, index }: { subFolder: SubFolder; index: number }) {
+    const router = useRouter();
+    const handleClick = () => {
+        router.push(`/sub-folders/${subFolder.id}`);
+    }
+
+    const subFolderGradients = [
+        'from-pink-500 to-rose-500',
+        'from-amber-500 to-orange-500',
+        'from-lime-500 to-green-500',
+        'from-cyan-500 to-sky-500',
     ];
-    
-    return (
-        <AccordionItem value={topic.id} className="border-b-0">
-             <Card className="overflow-hidden shadow-md border-0 transition-all duration-300 ease-in-out hover:shadow-xl">
-                 <AccordionTrigger className={cn("p-4 text-white text-left hover:no-underline bg-gradient-to-r", topicGradients[index % topicGradients.length])}>
-                    <div className="flex-1">
-                        <h3 className="font-headline text-lg font-bold">{topic.name}</h3>
-                    </div>
-                </AccordionTrigger>
-                <AccordionContent className="p-2 bg-card">
-                   {isLoadingPdfs ? <LoaderCircle className="mx-auto my-4 w-6 h-6 animate-spin" /> : 
-                    !pdfs || pdfs.length === 0 ? (
-                        <p className="text-center text-muted-foreground p-4">इस टॉपिक में कोई PDF नहीं है।</p>
-                    ) : (
-                        <div className="space-y-2">
-                           {pdfs.map((pdf, pdfIndex) => <PdfItem key={pdf.id} pdf={pdf} index={pdfIndex} />)}
-                        </div>
-                    )
-                   }
-                </AccordionContent>
-             </Card>
-        </AccordionItem>
+
+     return (
+        <div
+            className={cn(
+                "w-full rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer p-4 flex items-center justify-between text-white",
+                subFolderGradients[index % subFolderGradients.length]
+            )}
+            onClick={handleClick}
+        >
+            <div>
+                <h3 className="font-headline text-lg font-bold">{subFolder.name}</h3>
+            </div>
+            <ChevronRight className="w-6 h-6" />
+        </div>
     );
 }
+
 
 export default function PaperDetailPage() {
     const firestore = useFirestore();
@@ -115,31 +110,31 @@ export default function PaperDetailPage() {
     const topicsQuery = useMemoFirebase(() => query(collection(firestore, `papers/${paperId}/tabs`), orderBy('name')), [paperId, firestore]);
     const { data: topics, isLoading: isLoadingTopics } = useCollection<Tab>(topicsQuery);
     
-    const [pdfsByTopic, setPdfsByTopic] = useState<Record<string, PdfDocument[]>>({});
-    const [loadingPdfs, setLoadingPdfs] = useState<Record<string, boolean>>({});
+    const [subFoldersByTopic, setSubFoldersByTopic] = useState<Record<string, SubFolder[]>>({});
+    const [loadingSubFolders, setLoadingSubFolders] = useState<Record<string, boolean>>({});
     const [openAccordion, setOpenAccordion] = useState<string>(openTabId || '');
 
-    const fetchPdfsForTopic = useCallback(async (topicId: string) => {
-        if (!topicId || pdfsByTopic[topicId]) return;
-        setLoadingPdfs(prev => ({...prev, [topicId]: true}));
-        const pdfsQuery = query(collection(firestore, `papers/${paperId}/tabs/${topicId}/pdfDocuments`), orderBy('name'));
-        const querySnapshot = await getDocs(pdfsQuery);
-        const pdfs = querySnapshot.docs.map(doc => ({...doc.data(), id: doc.id} as PdfDocument));
-        setPdfsByTopic(prev => ({...prev, [topicId]: pdfs}));
-        setLoadingPdfs(prev => ({...prev, [topicId]: false}));
-    }, [firestore, paperId, pdfsByTopic]);
+    const fetchSubFoldersForTopic = useCallback(async (topicId: string) => {
+        if (!topicId || subFoldersByTopic[topicId]) return;
+        setLoadingSubFolders(prev => ({...prev, [topicId]: true}));
+        const subFoldersQuery = query(collection(firestore, `tabs/${topicId}/subFolders`), orderBy('createdAt'));
+        const querySnapshot = await getDocs(subFoldersQuery);
+        const subFolders = querySnapshot.docs.map(doc => ({...doc.data(), id: doc.id} as SubFolder));
+        setSubFoldersByTopic(prev => ({...prev, [topicId]: subFolders}));
+        setLoadingSubFolders(prev => ({...prev, [topicId]: false}));
+    }, [firestore, subFoldersByTopic]);
 
     useEffect(() => {
       if (openTabId) {
         setOpenAccordion(openTabId);
-        fetchPdfsForTopic(openTabId);
+        fetchSubFoldersForTopic(openTabId);
       }
-    }, [openTabId, fetchPdfsForTopic]);
+    }, [openTabId, fetchSubFoldersForTopic]);
 
 
     const handleAccordionChange = (value: string) => {
-        if(value && !pdfsByTopic[value]) {
-            fetchPdfsForTopic(value);
+        if(value && !subFoldersByTopic[value]) {
+            fetchSubFoldersForTopic(value);
         }
         setOpenAccordion(value);
     }
@@ -187,13 +182,26 @@ export default function PaperDetailPage() {
                 ) : (
                     <Accordion type="single" collapsible className="w-full space-y-4" value={openAccordion} onValueChange={handleAccordionChange}>
                        {topics.map((topic, index) => (
-                           <TopicItem 
-                                key={topic.id} 
-                                topic={topic} 
-                                index={index} 
-                                pdfs={pdfsByTopic[topic.id]}
-                                isLoadingPdfs={loadingPdfs[topic.id]}
-                           />
+                           <AccordionItem key={topic.id} value={topic.id} className="border-b-0">
+                             <Card className="overflow-hidden shadow-md border-0 transition-all duration-300 ease-in-out hover:shadow-xl">
+                                 <AccordionTrigger className={cn("p-4 text-white text-left hover:no-underline bg-gradient-to-r from-purple-500 to-pink-600")}>
+                                    <div className="flex-1">
+                                        <h3 className="font-headline text-lg font-bold">{topic.name}</h3>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="p-2 bg-card">
+                                   {loadingSubFolders[topic.id] ? <LoaderCircle className="mx-auto my-4 w-6 h-6 animate-spin" /> : 
+                                    !subFoldersByTopic[topic.id] || subFoldersByTopic[topic.id].length === 0 ? (
+                                        <p className="text-center text-muted-foreground p-4">इस टॉपिक में कोई सब-फोल्डर नहीं है।</p>
+                                    ) : (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4">
+                                           {subFoldersByTopic[topic.id].map((sf, sfIndex) => <SubFolderItem key={sf.id} subFolder={sf} index={sfIndex} />)}
+                                        </div>
+                                    )
+                                   }
+                                </AccordionContent>
+                             </Card>
+                           </AccordionItem>
                        ))}
                     </Accordion>
                 )}

@@ -37,10 +37,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Book, Users, DollarSign, Package, PlusCircle, LoaderCircle, Send, Library, FilePlus, FolderPlus, ShieldCheck, KeyRound, PackagePlus, Link as LinkIcon, Edit } from "lucide-react";
+import { FileText, Book, Users, DollarSign, Package, PlusCircle, LoaderCircle, Send, Library, FilePlus, FolderPlus, ShieldCheck, KeyRound, PackagePlus, Link as LinkIcon, Edit, FolderKanban } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import type { Paper, PdfDocument, Tab, User as AppUser, Combo } from "@/lib/types";
+import type { Paper, PdfDocument, Tab, User as AppUser, Combo, SubFolder } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const paperSchema = z.object({
@@ -69,7 +69,7 @@ const pdfSchema = z.object({
   googleDriveLink: z.string().url("कृपया एक मान्य गूगल ड्राइव लिंक डालें।"),
   paperId: z.string().min(1, "कृपया एक विषय चुनें।"),
   tabId: z.string().min(1, "कृपया एक टॉपिक चुनें।"),
-  subFolderId: z.string().optional(), // Made optional
+  subFolderId: z.string().min(1, "कृपया एक सब-फोल्डर चुनें।"),
   accessType: z.enum(["Free", "Paid"], { required_error: "एक्सेस प्रकार चुनना आवश्यक है।" }),
 });
 
@@ -199,6 +199,9 @@ function AdminDashboard() {
 
   const papersQuery = useMemoFirebase(() => query(collection(firestore, "papers"), orderBy("paperNumber")), [firestore]);
   const { data: papers, isLoading: papersLoading } = useCollection<Paper>(papersQuery);
+  
+  const [tabsByPaper, setTabsByPaper] = useState<Record<string, Tab[]>>({});
+  const [subFoldersByTab, setSubFoldersByTab] = useState<Record<string, SubFolder[]>>({});
 
   const usersQuery = useMemoFirebase(() => query(collection(firestore, "users")), [firestore]);
   const { data: users, isLoading: usersLoading } = useCollection<AppUser>(usersQuery);
@@ -208,23 +211,52 @@ function AdminDashboard() {
   
   const [allPdfs, setAllPdfs] = useState<PdfDocument[]>([]);
   const [loadingAllPdfs, setLoadingAllPdfs] = useState(false);
+  
+  const paperForm = useForm<z.infer<typeof paperSchema>>({ resolver: zodResolver(paperSchema), defaultValues: { name: "", description: "" } });
+  const tabForm = useForm<z.infer<typeof tabSchema>>({ resolver: zodResolver(tabSchema), defaultValues: { name: "", paperId: "" } });
+  const subFolderForm = useForm<z.infer<typeof subFolderSchema>>({ resolver: zodResolver(subFolderSchema), defaultValues: { name: "", paperId: "", tabId: "" } });
+  const pdfForm = useForm<z.infer<typeof pdfSchema>>({ resolver: zodResolver(pdfSchema) });
+  const comboForm = useForm<z.infer<typeof comboSchema>>({ resolver: zodResolver(comboSchema), defaultValues: { name: "", description: "", accessType: "Free", price: 0 } });
+  const addPdfToComboForm = useForm<z.infer<typeof addPdfToComboSchema>>({ resolver: zodResolver(addPdfToComboSchema), defaultValues: { pdfIds: [] } });
+  const notificationForm = useForm<z.infer<typeof notificationSchema>>({ resolver: zodResolver(notificationSchema), defaultValues: { title: "", message: "", imageUrl: "" } });
+  
+  const selectedComboAccessType = comboForm.watch("accessType");
+  const subFolderPaperId = subFolderForm.watch("paperId");
+  const pdfPaperId = pdfForm.watch("paperId");
+  const pdfTabId = pdfForm.watch("tabId");
+
+  const fetchTabs = useCallback(async (paperId: string) => {
+    if (!paperId || tabsByPaper[paperId]) return;
+    const tabsQuery = query(collection(firestore, `papers/${paperId}/tabs`));
+    const snapshot = await getDocs(tabsQuery);
+    const tabs = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Tab));
+    setTabsByPaper(prev => ({ ...prev, [paperId]: tabs }));
+  }, [firestore, tabsByPaper]);
+
+  const fetchSubFolders = useCallback(async (tabId: string) => {
+    if (!tabId || subFoldersByTab[tabId]) return;
+    const subFoldersQuery = query(collection(firestore, `tabs/${tabId}/subFolders`));
+    const snapshot = await getDocs(subFoldersQuery);
+    const subFolders = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as SubFolder));
+    setSubFoldersByTab(prev => ({ ...prev, [tabId]: subFolders }));
+  }, [firestore, subFoldersByTab]);
+
+  useEffect(() => { if (subFolderPaperId) fetchTabs(subFolderPaperId) }, [subFolderPaperId, fetchTabs]);
+  useEffect(() => { if (pdfPaperId) fetchTabs(pdfPaperId) }, [pdfPaperId, fetchTabs]);
+  useEffect(() => { if (pdfTabId) fetchSubFolders(pdfTabId) }, [pdfTabId, fetchSubFolders]);
 
   const fetchAllPdfs = useCallback(async () => {
-    if (!papers || papers.length === 0) return;
     setLoadingAllPdfs(true);
     let pdfs: PdfDocument[] = [];
-    for (const paper of papers) {
-        const tabsQuery = query(collection(firestore, `papers/${paper.id}/tabs`));
-        const tabsSnapshot = await getDocs(tabsQuery);
-        for (const tabDoc of tabsSnapshot.docs) {
-            const pdfsQuery = query(collection(firestore, `papers/${paper.id}/tabs/${tabDoc.id}/pdfDocuments`));
-            const pdfsSnapshot = await getDocs(pdfsQuery);
-            pdfs = [...pdfs, ...pdfsSnapshot.docs.map(d => ({...d.data(), id: d.id } as PdfDocument))];
-        }
+    const subFoldersSnapshot = await getDocs(collection(firestore, 'subFolders'));
+    for (const subFolderDoc of subFoldersSnapshot.docs) {
+        const pdfsQuery = query(collection(firestore, `subFolders/${subFolderDoc.id}/pdfDocuments`));
+        const pdfsSnapshot = await getDocs(pdfsQuery);
+        pdfs = [...pdfs, ...pdfsSnapshot.docs.map(d => ({...d.data(), id: d.id } as PdfDocument))];
     }
     setAllPdfs(pdfs);
     setLoadingAllPdfs(false);
-  }, [firestore, papers]);
+  }, [firestore]);
 
   useEffect(() => {
     if(addPdfComboDialog.open) {
@@ -232,15 +264,6 @@ function AdminDashboard() {
     }
   }, [addPdfComboDialog.open, fetchAllPdfs]);
   
-  const paperForm = useForm<z.infer<typeof paperSchema>>({ resolver: zodResolver(paperSchema), defaultValues: { name: "", description: "" } });
-  const tabForm = useForm<z.infer<typeof tabSchema>>({ resolver: zodResolver(tabSchema), defaultValues: { name: "", paperId: "" } });
-  const pdfForm = useForm<z.infer<typeof pdfSchema>>({ resolver: zodResolver(pdfSchema) });
-  const comboForm = useForm<z.infer<typeof comboSchema>>({ resolver: zodResolver(comboSchema), defaultValues: { name: "", description: "", accessType: "Free", price: 0 } });
-  const addPdfToComboForm = useForm<z.infer<typeof addPdfToComboSchema>>({ resolver: zodResolver(addPdfToComboSchema), defaultValues: { pdfIds: [] } });
-  const notificationForm = useForm<z.infer<typeof notificationSchema>>({ resolver: zodResolver(notificationSchema), defaultValues: { title: "", message: "", imageUrl: "" } });
-  
-  const selectedComboAccessType = comboForm.watch("accessType");
-
   const handleEditPaper = (paper: Paper) => {
     setEditingPaper(paper);
     paperForm.reset({ id: paper.id, name: paper.name, description: paper.description });
@@ -271,10 +294,19 @@ function AdminDashboard() {
     setIsSubmitting(false);
   }
 
+  async function onAddSubFolder(values: z.infer<typeof subFolderSchema>) {
+    setIsSubmitting(true);
+    const newSubFolder = { ...values, createdAt: serverTimestamp() };
+    await addDocumentNonBlocking(collection(firestore, `tabs/${values.tabId}/subFolders`), newSubFolder);
+    toast({ title: "सफलता!", description: `सब-फोल्डर "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
+    subFolderForm.reset();
+    setIsSubmitting(false);
+  }
+
   async function onAddPdf(values: z.infer<typeof pdfSchema>) {
     setIsSubmitting(true);
     const newPdf = { ...values, createdAt: serverTimestamp() };
-    await addDocumentNonBlocking(collection(firestore, `papers/${values.paperId}/tabs/${values.tabId}/pdfDocuments`), newPdf);
+    await addDocumentNonBlocking(collection(firestore, `subFolders/${values.subFolderId}/pdfDocuments`), newPdf);
     toast({ title: "सफलता!", description: `PDF "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
     pdfForm.reset();
     setIsSubmitting(false);
@@ -329,12 +361,13 @@ function AdminDashboard() {
       </div>
 
       <Card>
-        <CardHeader><CardTitle>कंटेंट मैनेजमेंट</CardTitle><CardDescription>यहां से विषय, टॉपिक, PDF और कॉम्बो मैनेज करें।</CardDescription></CardHeader>
+        <CardHeader><CardTitle>कंटेंट मैनेजमेंट</CardTitle><CardDescription>यहां से विषय, टॉपिक, सब-फोल्डर, PDF और कॉम्बो मैनेज करें।</CardDescription></CardHeader>
         <CardContent>
             <Tabs defaultValue="paper">
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 bg-muted/50">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 bg-muted/50">
                   <TabsTrigger value="paper" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-blue-500 to-indigo-600"><Book className="mr-2"/>विषय</TabsTrigger>
                   <TabsTrigger value="tab" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-purple-500 to-pink-600"><FolderPlus className="mr-2"/>टॉपिक</TabsTrigger>
+                  <TabsTrigger value="subfolder" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-yellow-500 to-orange-600"><FolderKanban className="mr-2"/>सब-फोल्डर</TabsTrigger>
                   <TabsTrigger value="pdf" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-green-500 to-teal-600"><FilePlus className="mr-2"/>PDF</TabsTrigger>
                   <TabsTrigger value="combo" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-orange-500 to-red-600"><PackagePlus className="mr-2"/>PDF कॉम्बो</TabsTrigger>
               </TabsList>
@@ -346,7 +379,7 @@ function AdminDashboard() {
                     <h3 className="font-bold text-lg mb-4">{editingPaper ? 'विषय एडिट करें' : 'नया विषय जोड़ें'}</h3>
                     <Form {...paperForm}>
                       <form onSubmit={paperForm.handleSubmit(onPaperSubmit)} className="space-y-4">
-                        <FormField control={paperForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>विषय का नाम</FormLabel><FormControl><Input placeholder="जैसे: Paper 7, इतिहास" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={paperForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>विषय का नाम</FormLabel><FormControl><Input placeholder="जैसे: Paper 1, इतिहास" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         <FormField control={paperForm.control} name="description" render={({ field }) => (<FormItem><FormLabel>विषय का विवरण (संक्षेप में)</FormLabel><FormControl><Textarea placeholder="जैसे: मध्य प्रदेश का इतिहास" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="animate-spin" /> : editingPaper ? "अपडेट करें" : "नया विषय सेव करें"}</Button>
                         {editingPaper && <Button variant="ghost" className="w-full" onClick={() => { setEditingPaper(null); paperForm.reset({name: '', description: ''}); }}>रद्द करें</Button>}
@@ -373,17 +406,34 @@ function AdminDashboard() {
                     <Form {...tabForm}><form onSubmit={tabForm.handleSubmit(onAddTab)} className="space-y-4 max-w-lg mx-auto"><FormField control={tabForm.control} name="paperId" render={({ field }) => (<FormItem><FormLabel>किस विषय में टॉपिक जोड़ना है?</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="एक विषय चुनें" /></SelectTrigger></FormControl><SelectContent>{papers && papers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/><FormField control={tabForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>टॉपिक का नाम</FormLabel><FormControl><Input placeholder="जैसे: अध्याय 1, प्राचीन इतिहास" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                           <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="animate-spin" /> : "नया टॉपिक सेव करें"}</Button></form></Form>
                 </TabsContent>
+
+                {/* Sub-Folder Management */}
+                <TabsContent value="subfolder" className="mt-6">
+                  <h3 className="font-bold text-lg mb-4">नया सब-फोल्डर जोड़ें</h3>
+                  <Form {...subFolderForm}>
+                    <form onSubmit={subFolderForm.handleSubmit(onAddSubFolder)} className="space-y-4 max-w-lg mx-auto">
+                      <FormField control={subFolderForm.control} name="paperId" render={({ field }) => (<FormItem><FormLabel>विषय चुनें</FormLabel><Select onValueChange={(value) => { field.onChange(value); subFolderForm.reset({ ...subFolderForm.getValues(), tabId: '' }); fetchTabs(value); }} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="पहले एक विषय चुनें" /></SelectTrigger></FormControl><SelectContent>{papersLoading ? <SelectItem value="loading" disabled>लोड हो रहा है...</SelectItem> : papers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                      <FormField control={subFolderForm.control} name="tabId" render={({ field }) => (<FormItem><FormLabel>टॉपिक चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={!subFolderPaperId || !tabsByPaper[subFolderPaperId]}><FormControl><SelectTrigger><SelectValue placeholder={!subFolderPaperId ? "पहले विषय चुनें" : "एक टॉपिक चुनें"} /></SelectTrigger></FormControl><SelectContent>{tabsByPaper[subFolderPaperId]?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                      <FormField control={subFolderForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>सब-फोल्डर का नाम</FormLabel><FormControl><Input placeholder="जैसे: हड़प्पा सभ्यता" {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                      <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="animate-spin" /> : "नया सब-फोल्डर सेव करें"}</Button>
+                    </form>
+                  </Form>
+                </TabsContent>
                 
                  {/* PDF Management */}
                 <TabsContent value="pdf" className="mt-6">
                      <h3 className="font-bold text-lg mb-4">नया PDF जोड़ें</h3>
                     <Form {...pdfForm}><form onSubmit={pdfForm.handleSubmit(onAddPdf)} className="space-y-4 max-w-lg mx-auto">
-                        <FormField control={pdfForm.control} name="paperId" render={({ field }) => (<FormItem><FormLabel>विषय चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="पहले एक विषय चुनें" /></SelectTrigger></FormControl><SelectContent>{papersLoading ? <SelectItem value="loading" disabled>लोड हो रहा है...</SelectItem> : papers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                        {/* Placeholder for Tabs dropdown */}
-                          <FormField control={pdfForm.control} name="tabId" render={({ field }) => (<FormItem><FormLabel>टॉपिक चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="एक टॉपिक चुनें" /></SelectTrigger></FormControl><SelectContent></SelectContent></Select><FormMessage /></FormItem>)}/>
-                          <FormField control={pdfForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>PDF का नाम</FormLabel><FormControl><Input placeholder="जैसे: इतिहास के महत्वपूर्ण नोट्स" {...field} /></FormControl><FormMessage /></FormItem>)}/><FormField control={pdfForm.control} name="description" render={({ field }) => (<FormItem><FormLabel>PDF का डिस्क्रिप्शन</FormLabel><FormControl><Input placeholder="इसमें महत्वपूर्ण तिथियां हैं" {...field} /></FormControl><FormMessage /></FormItem>)}/><FormField control={pdfForm.control} name="googleDriveLink" render={({ field }) => (<FormItem><FormLabel>Google Drive PDF Link</FormLabel><FormControl><Input placeholder="https://drive.google.com/..." {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                          <FormField control={pdfForm.control} name="accessType" render={({ field }) => (<FormItem><FormLabel>Access Type चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="एक्सेस प्रकार चुनें" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Free">Free</SelectItem><SelectItem value="Paid">Paid</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
-                          <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="animate-spin" /> : "PDF सेव करें"}</Button></form></Form>
+                        <FormField control={pdfForm.control} name="paperId" render={({ field }) => (<FormItem><FormLabel>विषय चुनें</FormLabel><Select onValueChange={(value) => { field.onChange(value); pdfForm.reset({ ...pdfForm.getValues(), tabId: '', subFolderId: ''}); fetchTabs(value); }} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="पहले एक विषय चुनें" /></SelectTrigger></FormControl><SelectContent>{papersLoading ? <SelectItem value="loading" disabled>लोड हो रहा है...</SelectItem> : papers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                        <FormField control={pdfForm.control} name="tabId" render={({ field }) => (<FormItem><FormLabel>टॉपिक चुनें</FormLabel><Select onValueChange={(value) => { field.onChange(value); pdfForm.reset({ ...pdfForm.getValues(), subFolderId: ''}); fetchSubFolders(value); }} defaultValue={field.value} disabled={!pdfPaperId || !tabsByPaper[pdfPaperId]}><FormControl><SelectTrigger><SelectValue placeholder={!pdfPaperId ? "पहले विषय चुनें" : "एक टॉपिक चुनें"} /></SelectTrigger></FormControl><SelectContent>{tabsByPaper[pdfPaperId]?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                        <FormField control={pdfForm.control} name="subFolderId" render={({ field }) => (<FormItem><FormLabel>सब-फोल्डर चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value} disabled={!pdfTabId || !subFoldersByTab[pdfTabId]}><FormControl><SelectTrigger><SelectValue placeholder={!pdfTabId ? "पहले टॉपिक चुनें" : "एक सब-फोल्डर चुनें"} /></SelectTrigger></FormControl><SelectContent>{subFoldersByTab[pdfTabId]?.map(sf => <SelectItem key={sf.id} value={sf.id}>{sf.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
+                        
+                        <FormField control={pdfForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>PDF का नाम</FormLabel><FormControl><Input placeholder="जैसे: इतिहास के महत्वपूर्ण नोट्स" {...field} /></FormControl><FormMessage /></FormItem>)}/><FormField control={pdfForm.control} name="description" render={({ field }) => (<FormItem><FormLabel>PDF का डिस्क्रिप्शन</FormLabel><FormControl><Input placeholder="इसमें महत्वपूर्ण तिथियां हैं" {...field} /></FormControl><FormMessage /></FormItem>)}/><FormField control={pdfForm.control} name="googleDriveLink" render={({ field }) => (<FormItem><FormLabel>Google Drive PDF Link</FormLabel><FormControl><Input placeholder="https://drive.google.com/..." {...field} /></FormControl><FormMessage /></FormItem>)}/>
+                        <FormField control={pdfForm.control} name="accessType" render={({ field }) => (<FormItem><FormLabel>Access Type चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="एक्सेस प्रकार चुनें" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Free">Free</SelectItem><SelectItem value="Paid">Paid</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
+                          
+                        <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="animate-spin" /> : "PDF सेव करें"}</Button>
+                    </form>
+                    </Form>
                 </TabsContent>
 
                 {/* Combos Management */}

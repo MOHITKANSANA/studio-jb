@@ -87,38 +87,19 @@ export default function ComboDetailPage() {
             setIsLoadingPdfs(true);
             const fetchedPdfs: PdfDocument[] = [];
             
-            // Firestore 'in' query supports up to 30 items. We need to batch.
-            const batchSize = 30;
-            for (let i = 0; i < combo.pdfIds.length; i += batchSize) {
-                const batchIds = combo.pdfIds.slice(i, i + batchSize);
-                const pdfsQuery = query(
-                    collection(firestore, 'papers'), // This is a bit tricky, we need to search across all pdfs
-                    // We can't query subcollections directly with 'in'. This requires a change in data structure.
-                    // For now, let's fetch one by one, which is inefficient but works for smaller sets.
-                );
-
-                // This is a workaround. A better data structure would be a root-level `pdfs` collection.
-                const paperSnapshot = await getDocs(collection(firestore, 'papers'));
-                for (const paperDoc of paperSnapshot.docs) {
-                    const tabSnapshot = await getDocs(collection(paperDoc.ref, 'tabs'));
-                    for (const tabDoc of tabSnapshot.docs) {
-                        for(const pdfId of batchIds) {
-                            try {
-                                const pdfRef = doc(tabDoc.ref, 'pdfDocuments', pdfId);
-                                const pdfSnap = await getDoc(pdfRef);
-                                if(pdfSnap.exists()){
-                                    const pdfData = { ...pdfSnap.data(), id: pdfSnap.id } as PdfDocument;
-                                    // avoid duplicates
-                                    if(!fetchedPdfs.find(p => p.id === pdfData.id)) {
-                                       fetchedPdfs.push(pdfData);
-                                    }
-                                }
-                            } catch(e) {
-                                // doc might not exist in this path, ignore.
-                            }
+            // This is a workaround. A better data structure would be a root-level `pdfs` collection.
+            // With the current structure, we have to iterate a lot.
+             const subFoldersSnapshot = await getDocs(collection(firestore, 'subFolders'));
+            for (const subFolderDoc of subFoldersSnapshot.docs) {
+                const pdfsSnapshot = await getDocs(collection(subFolderDoc.ref, 'pdfDocuments'));
+                pdfsSnapshot.forEach(pdfDoc => {
+                    if (combo.pdfIds.includes(pdfDoc.id)) {
+                        const pdfData = { ...pdfDoc.data(), id: pdfDoc.id } as PdfDocument;
+                         if(!fetchedPdfs.find(p => p.id === pdfData.id)) {
+                           fetchedPdfs.push(pdfData);
                         }
                     }
-                }
+                });
             }
             
             setPdfs(fetchedPdfs);

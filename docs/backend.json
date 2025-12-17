@@ -115,6 +115,36 @@
         "paperId"
       ]
     },
+    "SubFolder": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SubFolder",
+      "type": "object",
+      "description": "Represents a sub-folder within a tab.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SubFolder entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of the sub-folder."
+        },
+        "paperId": {
+          "type": "string",
+          "description": "Denormalized reference to Paper for easier queries."
+        },
+        "tabId": {
+          "type": "string",
+          "description": "Reference to Tab. (Relationship: Tab 1:N SubFolder)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "paperId",
+        "tabId"
+      ]
+    },
     "PdfDocument": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "PdfDocument",
@@ -144,7 +174,11 @@
         },
         "tabId": {
           "type": "string",
-          "description": "Reference to Tab. (Relationship: Tab 1:N PdfDocument)"
+          "description": "Denormalized reference to Tab for easier queries."
+        },
+        "subFolderId": {
+          "type": "string",
+          "description": "Reference to SubFolder. (Relationship: SubFolder 1:N PdfDocument)"
         },
         "accessType": {
           "type": "string",
@@ -160,6 +194,7 @@
         "name",
         "description",
         "googleDriveLink",
+        "subFolderId",
         "tabId",
         "paperId",
         "accessType"
@@ -256,14 +291,24 @@
           "description": "Stores tabs or chapters associated with a specific paper."
         }
       },
+       {
+        "path": "/tabs/{tabId}/subFolders/{subFolderId}",
+        "definition": {
+          "entityName": "SubFolder",
+          "schema": {
+            "$ref": "#/backend/entities/SubFolder"
+          },
+          "description": "Stores sub-folders associated with a specific tab."
+        }
+      },
       {
-        "path": "/papers/{paperId}/tabs/{tabId}/pdfDocuments/{pdfDocumentId}",
+        "path": "/subFolders/{subFolderId}/pdfDocuments/{pdfDocumentId}",
         "definition": {
           "entityName": "PdfDocument",
           "schema": {
             "$ref": "#/backend/entities/PdfDocument"
           },
-          "description": "Stores PDF documents associated with a specific tab within a paper."
+          "description": "Stores PDF documents associated with a specific sub-folder."
         }
       },
       {
