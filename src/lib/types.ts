@@ -1,4 +1,4 @@
-export type Pdf = {
+export type PdfDocument = {
   id: string;
   name: string;
   description: string;
@@ -13,7 +13,7 @@ export type Tab = {
   id: string;
   name: string;
   paperId: string;
-  pdfs?: Pdf[];
+  pdfs?: PdfDocument[];
   createdAt: any; // Firestore ServerTimestamp
 }
 
@@ -41,6 +41,6 @@ export type Combo = {
   accessType: 'Free' | 'Paid';
   price?: number;
   pdfIds: string[];
-  pdfs?: Pdf[]; // Populated on the client
+  pdfs?: PdfDocument[]; // Populated on the client
   createdAt: any; // Firestore ServerTimestamp
 };

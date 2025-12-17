@@ -40,7 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileText, Book, Users, DollarSign, Package, PlusCircle, LoaderCircle, Send, Library, FilePlus, FolderPlus, ShieldCheck, KeyRound, PackagePlus, Link as LinkIcon, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import type { Paper, PdfDocument as Pdf, Tab, User as AppUser, Combo } from "@/lib/types";
+import type { Paper, PdfDocument, Tab, User as AppUser, Combo } from "@/lib/types";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const paperSchema = z.object({
@@ -69,7 +69,7 @@ const pdfSchema = z.object({
   googleDriveLink: z.string().url("कृपया एक मान्य गूगल ड्राइव लिंक डालें।"),
   paperId: z.string().min(1, "कृपया एक विषय चुनें।"),
   tabId: z.string().min(1, "कृपया एक टॉपिक चुनें।"),
-  subFolderId: z.string().min(1, "कृपया एक सब-फोल्डर चुनें।"),
+  subFolderId: z.string().optional(), // Made optional
   accessType: z.enum(["Free", "Paid"], { required_error: "एक्सेस प्रकार चुनना आवश्यक है।" }),
 });
 
@@ -205,20 +205,20 @@ function AdminDashboard() {
   const combosQuery = useMemoFirebase(() => query(collection(firestore, "combos"), orderBy("name")), [firestore]);
   const { data: combos, isLoading: combosLoading } = useCollection<Combo>(combosQuery);
   
-  const [allPdfs, setAllPdfs] = useState<Pdf[]>([]);
+  const [allPdfs, setAllPdfs] = useState<PdfDocument[]>([]);
   const [loadingAllPdfs, setLoadingAllPdfs] = useState(false);
 
   const fetchAllPdfs = useCallback(async () => {
     if (!papers || papers.length === 0) return;
     setLoadingAllPdfs(true);
-    let pdfs: Pdf[] = [];
+    let pdfs: PdfDocument[] = [];
     for (const paper of papers) {
         const tabsQuery = query(collection(firestore, `papers/${paper.id}/tabs`));
         const tabsSnapshot = await getDocs(tabsQuery);
         for (const tabDoc of tabsSnapshot.docs) {
             const pdfsQuery = query(collection(firestore, `papers/${paper.id}/tabs/${tabDoc.id}/pdfDocuments`));
             const pdfsSnapshot = await getDocs(pdfsQuery);
-            pdfs = [...pdfs, ...pdfsSnapshot.docs.map(d => ({...d.data(), id: d.id } as Pdf))];
+            pdfs = [...pdfs, ...pdfsSnapshot.docs.map(d => ({...d.data(), id: d.id } as PdfDocument))];
         }
     }
     setAllPdfs(pdfs);
@@ -321,20 +321,19 @@ function AdminDashboard() {
   return (
     <>
     <div className="p-4 sm:p-6 space-y-6 bg-muted/20">
-      <h1 className="font-headline text-3xl font-bold text-foreground">Admin Dashboard – Smart Study MPSE</h1>
+      <h1 className="font-headline text-3xl font-bold text-foreground">Admin Dashboard – MPPSC Mains & Civil Service Notes</h1>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {analytics.map(item => <Card key={item.title} className={cn("text-white border-0 shadow-lg", item.gradient)}><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">{item.title}</CardTitle><item.icon className="h-5 w-5 opacity-80" /></CardHeader><CardContent><div className="text-3xl font-bold">{item.value}</div></CardContent></Card>)}
         {revenue.map(item => <div key={item.title} className="flex items-center p-4 bg-card rounded-lg shadow-md"><div className={cn("p-3 rounded-full mr-4 bg-primary/10", item.color)}><item.icon className="h-6 w-6"/></div><div><p className="text-sm text-muted-foreground">{item.title}</p><p className="text-2xl font-bold text-foreground">{item.value}</p></div></div>)}
       </div>
 
       <Card>
-        <CardHeader><CardTitle>कंटेंट मैनेजमेंट</CardTitle><CardDescription>यहां से विषय, टॉपिक, सब-फोल्डर, PDF और कॉम्बो मैनेज करें।</CardDescription></CardHeader>
+        <CardHeader><CardTitle>कंटेंट मैनेजमेंट</CardTitle><CardDescription>यहां से विषय, टॉपिक, PDF और कॉम्बो मैनेज करें।</CardDescription></CardHeader>
         <CardContent>
             <Tabs defaultValue="paper">
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 bg-muted/50">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 bg-muted/50">
                   <TabsTrigger value="paper" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-blue-500 to-indigo-600"><Book className="mr-2"/>विषय</TabsTrigger>
                   <TabsTrigger value="tab" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-purple-500 to-pink-600"><FolderPlus className="mr-2"/>टॉपिक</TabsTrigger>
-                  <TabsTrigger value="subfolder" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-teal-500 to-cyan-600"><FolderPlus className="mr-2"/>सब-फोल्डर</TabsTrigger>
                   <TabsTrigger value="pdf" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-green-500 to-teal-600"><FilePlus className="mr-2"/>PDF</TabsTrigger>
                   <TabsTrigger value="combo" className="data-[state=active]:shadow-lg data-[state=active]:scale-105 transition-transform text-white bg-gradient-to-r from-orange-500 to-red-600"><PackagePlus className="mr-2"/>PDF कॉम्बो</TabsTrigger>
               </TabsList>
@@ -379,7 +378,8 @@ function AdminDashboard() {
                      <h3 className="font-bold text-lg mb-4">नया PDF जोड़ें</h3>
                     <Form {...pdfForm}><form onSubmit={pdfForm.handleSubmit(onAddPdf)} className="space-y-4 max-w-lg mx-auto">
                         <FormField control={pdfForm.control} name="paperId" render={({ field }) => (<FormItem><FormLabel>विषय चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="पहले एक विषय चुनें" /></SelectTrigger></FormControl><SelectContent>{papersLoading ? <SelectItem value="loading" disabled>लोड हो रहा है...</SelectItem> : papers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)}/>
-                        {/* Placeholder for Tabs and Sub-folders dropdowns */}
+                        {/* Placeholder for Tabs dropdown */}
+                          <FormField control={pdfForm.control} name="tabId" render={({ field }) => (<FormItem><FormLabel>टॉपिक चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="एक टॉपिक चुनें" /></SelectTrigger></FormControl><SelectContent></SelectContent></Select><FormMessage /></FormItem>)}/>
                           <FormField control={pdfForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>PDF का नाम</FormLabel><FormControl><Input placeholder="जैसे: इतिहास के महत्वपूर्ण नोट्स" {...field} /></FormControl><FormMessage /></FormItem>)}/><FormField control={pdfForm.control} name="description" render={({ field }) => (<FormItem><FormLabel>PDF का डिस्क्रिप्शन</FormLabel><FormControl><Input placeholder="इसमें महत्वपूर्ण तिथियां हैं" {...field} /></FormControl><FormMessage /></FormItem>)}/><FormField control={pdfForm.control} name="googleDriveLink" render={({ field }) => (<FormItem><FormLabel>Google Drive PDF Link</FormLabel><FormControl><Input placeholder="https://drive.google.com/..." {...field} /></FormControl><FormMessage /></FormItem>)}/>
                           <FormField control={pdfForm.control} name="accessType" render={({ field }) => (<FormItem><FormLabel>Access Type चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="एक्सेस प्रकार चुनें" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Free">Free</SelectItem><SelectItem value="Paid">Paid</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
                           <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="animate-spin" /> : "PDF सेव करें"}</Button></form></Form>

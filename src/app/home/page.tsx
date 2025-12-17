@@ -95,15 +95,27 @@ export default function HomePage() {
   const combosQuery = useMemoFirebase(() => query(collection(firestore, "combos"), orderBy("createdAt", "desc"), limit(4)), [firestore]);
   const { data: recentCombos, isLoading: combosLoading } = useCollection<Combo>(combosQuery);
 
-  const filteredPapers = useMemo(() => {
-    if (!papers) return [];
-    if (!searchTerm) return papers;
+  const filteredItems = useMemo(() => {
     const lowercasedFilter = searchTerm.toLowerCase();
-    return papers.filter(paper => 
+    if (!papers && !recentCombos) return { papers: [], combos: [] };
+
+    const filteredPapers = papers?.filter(paper => 
         paper.name.toLowerCase().includes(lowercasedFilter) ||
         paper.description.toLowerCase().includes(lowercasedFilter)
-    );
-  }, [searchTerm, papers]);
+    ) || [];
+
+    const filteredCombos = recentCombos?.filter(combo => 
+        combo.name.toLowerCase().includes(lowercasedFilter) ||
+        combo.description.toLowerCase().includes(lowercasedFilter)
+    ) || [];
+
+    if (!searchTerm) {
+        return { papers: papers || [], combos: recentCombos || [] };
+    }
+
+    return { papers: filteredPapers, combos: filteredCombos };
+
+  }, [searchTerm, papers, recentCombos]);
   
   const paperGradients = [
     'from-blue-500 to-indigo-600',
@@ -114,7 +126,7 @@ export default function HomePage() {
     'from-rose-500 to-fuchsia-600',
   ];
 
-  const papersWithGradients = filteredPapers.map((paper, index) => ({
+  const papersWithGradients = (filteredItems.papers || []).map((paper, index) => ({
     ...paper,
     gradient: paperGradients[index % paperGradients.length],
   }));
@@ -139,7 +151,7 @@ export default function HomePage() {
         <div className="flex-1 p-4 sm:p-6 pt-0 overflow-y-auto">
            {isLoading && <div className="flex justify-center p-8"><LoaderCircle className="w-8 h-8 animate-spin text-primary" /></div>}
            
-           {!isLoading && papersWithGradients.length === 0 && (!recentCombos || recentCombos.length === 0) && (
+           {!isLoading && papersWithGradients.length === 0 && (filteredItems.combos || []).length === 0 && (
              <p className="text-center text-muted-foreground p-8">
                {searchTerm ? `"${searchTerm}" के लिए कोई परिणाम नहीं मिला।` : "अभी कोई कंटेंट उपलब्ध नहीं है। कृपया बाद में जांचें।"}
              </p>
@@ -147,15 +159,16 @@ export default function HomePage() {
 
            {/* Papers Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {papersWithGradients.map((paper) => (
-                    <PaperItem key={paper.id} paper={paper} gradient={paper.gradient} />
+                {papersWithGradients.map((paper, index) => (
+                    <div key={paper.id} className={cn({ 'md:col-span-2': papersWithGradients.length % 2 !== 0 && index === papersWithGradients.length - 1 })}>
+                         <PaperItem paper={paper} gradient={paper.gradient} />
+                    </div>
                 ))}
             </div>
-            {papersWithGradients.length % 2 !== 0 && <div className="md:col-span-2"></div>}
 
 
           {/* Combos Section */}
-          {recentCombos && recentCombos.length > 0 && (
+          {filteredItems.combos && filteredItems.combos.length > 0 && (
             <div className="mt-8">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-headline font-bold gradient-text">Important PDF Combos</h2>
@@ -164,7 +177,7 @@ export default function HomePage() {
                     </Link>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {recentCombos.map((combo, index) => (
+                    {filteredItems.combos.map((combo, index) => (
                         <ComboItem key={combo.id} combo={combo} index={index} />
                     ))}
                 </div>

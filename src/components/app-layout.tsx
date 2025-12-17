@@ -259,7 +259,7 @@ function TopBar() {
       <SidebarTrigger className={cn(!isMobile && "hidden")}/>
       <div className="flex-1 flex items-center gap-2">
          <BookOpenCheck className="w-7 h-7 text-primary" />
-         <h1 className="font-headline text-xl font-bold gradient-text">Smart Study MPSE</h1>
+         <h1 className="font-headline text-xl font-bold gradient-text">MPPSC Mains & Civil Service Notes</h1>
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

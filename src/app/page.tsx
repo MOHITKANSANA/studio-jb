@@ -22,7 +22,7 @@ export default function SplashPage() {
           <BookOpenCheck className="w-20 h-20 text-white" />
         </div>
         <h1 className="font-headline text-5xl font-bold text-white tracking-tight">
-          Smart Study MPSE
+          MPPSC Mains & Civil Service Notes
         </h1>
         <p className="mt-4 text-lg text-white/80">
           MPSE की तैयारी अब और भी स्मार्ट

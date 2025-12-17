@@ -5,7 +5,7 @@ import { FirebaseClientProvider } from '@/firebase';
 import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
-  title: 'Smart Study MPSE',
+  title: 'MPPSC Mains & Civil Service Notes',
   description: 'पढ़ाई अब और भी स्मार्ट',
 };
 
