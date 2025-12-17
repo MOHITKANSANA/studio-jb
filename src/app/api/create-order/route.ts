@@ -1,26 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import Razorpay from 'razorpay';
-import { v4 as uuidv4 } from 'uuid';
-
-export async function POST(req: NextRequest) {
-    const { amount, currency = 'INR' } = await req.json();
-
-    const razorpay = new Razorpay({
-        key_id: process.env.RAZORPAY_KEY_ID!,
-        key_secret: process.env.RAZORPAY_KEY_SECRET!,
+// This file is no longer needed as the order creation is now handled on the client-side.
+// You can safely delete this file.
+export async function POST() {
+    return new Response(JSON.stringify({ error: "This endpoint is deprecated." }), {
+        status: 404,
+        headers: {
+            'Content-Type': 'application/json',
+        },
     });
-
-    const options = {
-        amount: amount * 100, // amount in the smallest currency unit
-        currency,
-        receipt: `receipt_${uuidv4()}`,
-    };
-
-    try {
-        const order = await razorpay.orders.create(options);
-        return NextResponse.json(order);
-    } catch (error) {
-        console.error("Error creating Razorpay order:", error);
-        return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
-    }
 }

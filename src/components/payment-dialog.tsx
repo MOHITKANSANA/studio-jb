@@ -16,6 +16,8 @@ import { useUser } from '@/firebase';
 import type { Combo, PdfDocument } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { LoaderCircle } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
+
 
 declare const Razorpay: any;
 
@@ -48,27 +50,13 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
     setIsLoading(true);
 
     try {
-        const response = await fetch('/api/create-order', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ amount: item.price }),
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to create order');
-        }
-
-        const order = await response.json();
-
         const options = {
             key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
-            amount: order.amount,
-            currency: order.currency,
-            name: 'MPPSC Notes',
+            amount: item.price * 100, // amount in the smallest currency unit
+            currency: "INR",
+            name: 'MPPSC Mains & Civil Service Notes',
             description: `Payment for ${item.name}`,
-            order_id: order.id,
+            receipt: `receipt_${item.id}_${uuidv4()}`,
             handler: function (response: any) {
                 toast({
                     title: 'Payment Successful!',
@@ -82,6 +70,12 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
             prefill: {
                 name: user?.displayName || 'Student',
                 email: user?.email,
+                contact: ''
+            },
+            notes: {
+                itemId: item.id,
+                itemType: itemType,
+                userId: user?.uid
             },
             theme: {
                 color: '#6366f1',
