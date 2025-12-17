@@ -29,7 +29,6 @@ export type Tab = {
 export type Paper = {
   id: string;
   name: string;
-  description: string;
   paperNumber: number;
   createdAt: any; // Firestore ServerTimestamp
 };

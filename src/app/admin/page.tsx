@@ -46,7 +46,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 const paperSchema = z.object({
   id: z.string().optional(),
   name: z.string().min(1, "विषय का नाम आवश्यक है।"),
-  description: z.string().max(100, "विवरण 100 अक्षरों से कम होना चाहिए।").min(1, "विवरण आवश्यक है।"),
 });
 
 const tabSchema = z.object({
@@ -71,6 +70,13 @@ const pdfSchema = z.object({
   tabId: z.string().min(1, "कृपया एक टॉपिक चुनें।"),
   subFolderId: z.string().min(1, "कृपया एक सब-फोल्डर चुनें।"),
   accessType: z.enum(["Free", "Paid"], { required_error: "एक्सेस प्रकार चुनना आवश्यक है।" }),
+  price: z.preprocess(
+    (a) => parseFloat(z.string().parse(a)),
+    z.number().positive("कीमत 0 से ज़्यादा होनी चाहिए।").optional()
+  ),
+}).refine(data => data.accessType === 'Free' || (data.price !== undefined && data.price > 0), {
+  message: "पेड PDF के लिए कीमत डालना आवश्यक है।",
+  path: ["price"],
 });
 
 const comboSchema = z.object({
@@ -212,7 +218,7 @@ function AdminDashboard() {
   const [allPdfs, setAllPdfs] = useState<PdfDocument[]>([]);
   const [loadingAllPdfs, setLoadingAllPdfs] = useState(false);
   
-  const paperForm = useForm<z.infer<typeof paperSchema>>({ resolver: zodResolver(paperSchema), defaultValues: { name: "", description: "" } });
+  const paperForm = useForm<z.infer<typeof paperSchema>>({ resolver: zodResolver(paperSchema), defaultValues: { name: "" } });
   const tabForm = useForm<z.infer<typeof tabSchema>>({ resolver: zodResolver(tabSchema), defaultValues: { name: "", paperId: "" } });
   const subFolderForm = useForm<z.infer<typeof subFolderSchema>>({ resolver: zodResolver(subFolderSchema), defaultValues: { name: "", paperId: "", tabId: "" } });
   const pdfForm = useForm<z.infer<typeof pdfSchema>>({ resolver: zodResolver(pdfSchema) });
@@ -221,6 +227,7 @@ function AdminDashboard() {
   const notificationForm = useForm<z.infer<typeof notificationSchema>>({ resolver: zodResolver(notificationSchema), defaultValues: { title: "", message: "", imageUrl: "" } });
   
   const selectedComboAccessType = comboForm.watch("accessType");
+  const selectedPdfAccessType = pdfForm.watch("accessType");
   const subFolderPaperId = subFolderForm.watch("paperId");
   const pdfPaperId = pdfForm.watch("paperId");
   const pdfTabId = pdfForm.watch("tabId");
@@ -266,21 +273,21 @@ function AdminDashboard() {
   
   const handleEditPaper = (paper: Paper) => {
     setEditingPaper(paper);
-    paperForm.reset({ id: paper.id, name: paper.name, description: paper.description });
+    paperForm.reset({ id: paper.id, name: paper.name });
   };
   
   async function onPaperSubmit(values: z.infer<typeof paperSchema>) {
     setIsSubmitting(true);
     if (editingPaper) {
       const paperRef = doc(firestore, "papers", editingPaper.id);
-      await updateDocumentNonBlocking(paperRef, { name: values.name, description: values.description });
+      await updateDocumentNonBlocking(paperRef, { name: values.name });
       toast({ title: "सफलता!", description: `विषय "${values.name}" सफलतापूर्वक अपडेट हो गया है।` });
     } else {
       const newPaper = { ...values, paperNumber: (papers?.length || 0) + 1, createdAt: serverTimestamp() };
       await addDocumentNonBlocking(collection(firestore, "papers"), newPaper);
       toast({ title: "सफलता!", description: `विषय "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
     }
-    paperForm.reset({ name: "", description: "" });
+    paperForm.reset({ name: "" });
     setEditingPaper(null);
     setIsSubmitting(false);
   }
@@ -305,7 +312,7 @@ function AdminDashboard() {
 
   async function onAddPdf(values: z.infer<typeof pdfSchema>) {
     setIsSubmitting(true);
-    const newPdf = { ...values, createdAt: serverTimestamp() };
+    const newPdf = { ...values, price: values.accessType === 'Paid' ? values.price : 0, createdAt: serverTimestamp() };
     await addDocumentNonBlocking(collection(firestore, `subFolders/${values.subFolderId}/pdfDocuments`), newPdf);
     toast({ title: "सफलता!", description: `PDF "${values.name}" सफलतापूर्वक जोड़ दिया गया है।` });
     pdfForm.reset();
@@ -380,9 +387,8 @@ function AdminDashboard() {
                     <Form {...paperForm}>
                       <form onSubmit={paperForm.handleSubmit(onPaperSubmit)} className="space-y-4">
                         <FormField control={paperForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>विषय का नाम</FormLabel><FormControl><Input placeholder="जैसे: Paper 1, इतिहास" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                        <FormField control={paperForm.control} name="description" render={({ field }) => (<FormItem><FormLabel>विषय का विवरण (संक्षेप में)</FormLabel><FormControl><Textarea placeholder="जैसे: मध्य प्रदेश का इतिहास" {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="animate-spin" /> : editingPaper ? "अपडेट करें" : "नया विषय सेव करें"}</Button>
-                        {editingPaper && <Button variant="ghost" className="w-full" onClick={() => { setEditingPaper(null); paperForm.reset({name: '', description: ''}); }}>रद्द करें</Button>}
+                        {editingPaper && <Button variant="ghost" className="w-full" onClick={() => { setEditingPaper(null); paperForm.reset({name: ''}); }}>रद्द करें</Button>}
                       </form>
                     </Form>
                   </div>
@@ -391,7 +397,7 @@ function AdminDashboard() {
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                       {papersLoading ? <LoaderCircle className="animate-spin"/> : papers?.map(p => (
                         <Card key={p.id} className="flex items-center justify-between p-3">
-                          <div><p className="font-semibold">{p.name}</p><p className="text-sm text-muted-foreground">{p.description}</p></div>
+                          <div><p className="font-semibold">{p.name}</p></div>
                           <Button size="sm" variant="ghost" onClick={() => handleEditPaper(p)}><Edit className="h-4 w-4"/></Button>
                         </Card>
                       ))}
@@ -430,7 +436,7 @@ function AdminDashboard() {
                         
                         <FormField control={pdfForm.control} name="name" render={({ field }) => (<FormItem><FormLabel>PDF का नाम</FormLabel><FormControl><Input placeholder="जैसे: इतिहास के महत्वपूर्ण नोट्स" {...field} /></FormControl><FormMessage /></FormItem>)}/><FormField control={pdfForm.control} name="description" render={({ field }) => (<FormItem><FormLabel>PDF का डिस्क्रिप्शन</FormLabel><FormControl><Input placeholder="इसमें महत्वपूर्ण तिथियां हैं" {...field} /></FormControl><FormMessage /></FormItem>)}/><FormField control={pdfForm.control} name="googleDriveLink" render={({ field }) => (<FormItem><FormLabel>Google Drive PDF Link</FormLabel><FormControl><Input placeholder="https://drive.google.com/..." {...field} /></FormControl><FormMessage /></FormItem>)}/>
                         <FormField control={pdfForm.control} name="accessType" render={({ field }) => (<FormItem><FormLabel>Access Type चुनें</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="एक्सेस प्रकार चुनें" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Free">Free</SelectItem><SelectItem value="Paid">Paid</SelectItem></SelectContent></Select><FormMessage /></FormItem>)}/>
-                          
+                        {selectedPdfAccessType === 'Paid' && <FormField control={pdfForm.control} name="price" render={({ field }) => (<FormItem><FormLabel>कीमत (₹ में)</FormLabel><FormControl><Input type="number" placeholder="जैसे: 99" {...field} /></FormControl><FormMessage /></FormItem>)} />}  
                         <Button type="submit" className="w-full" disabled={isSubmitting}>{isSubmitting ? <LoaderCircle className="animate-spin" /> : "PDF सेव करें"}</Button>
                     </form>
                     </Form>

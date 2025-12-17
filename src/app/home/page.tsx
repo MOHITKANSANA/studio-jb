@@ -76,26 +76,35 @@ function TopicsForPaper({ paperId }: { paperId: string }) {
 }
 
 
-function PaperItem({ paper }: { paper: Paper }) {
+function PaperItem({ paper, index }: { paper: Paper; index: number }) {
+    const paperGradients = [
+        "bg-gradient-to-r from-blue-500 to-cyan-500",
+        "bg-gradient-to-r from-purple-500 to-fuchsia-500",
+        "bg-gradient-to-r from-green-500 to-emerald-500",
+        "bg-gradient-to-r from-orange-500 to-amber-500",
+        "bg-gradient-to-r from-red-500 to-rose-500",
+        "bg-gradient-to-r from-indigo-500 to-violet-500",
+    ];
+
     return (
         <AccordionItem value={paper.id} className="border-none">
-            <Card className="overflow-hidden shadow-md border-0 transition-all duration-300 ease-in-out hover:shadow-xl bg-card">
-                 <AccordionTrigger className={cn("p-4 text-left hover:no-underline")}>
+            <div className={cn("overflow-hidden shadow-md border-0 transition-all duration-300 ease-in-out hover:shadow-xl rounded-lg", paperGradients[index % paperGradients.length])}>
+                 <AccordionTrigger className={cn("p-4 text-left hover:no-underline text-white")}>
                     <div className="flex-1">
-                        <h3 className="font-headline text-xl font-bold text-foreground">{paper.name}</h3>
-                         <p className="text-xs text-muted-foreground font-normal mt-1">{paper.description}</p>
+                        <h3 className="font-headline text-xl font-bold">{paper.name}</h3>
                     </div>
                 </AccordionTrigger>
-                <AccordionContent>
+                <AccordionContent className="bg-card/80 backdrop-blur-sm rounded-b-lg">
                     <TopicsForPaper paperId={paper.id} />
                 </AccordionContent>
-             </Card>
+             </div>
         </AccordionItem>
     );
 }
 
 function ComboItem({ combo, index }: { combo: Combo; index: number }) {
     const [dialogOpen, setDialogOpen] = useState(false);
+    const router = useRouter();
     const isPaid = combo.accessType === 'Paid';
 
     const comboGradients = [
@@ -108,7 +117,11 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
-        setDialogOpen(true);
+        if (isPaid) {
+            setDialogOpen(true);
+        } else {
+            router.push(`/combos/${combo.id}`);
+        }
     };
 
     return (
@@ -166,8 +179,7 @@ export default function HomePage() {
     if (!papers && !recentCombos) return { papers: [], combos: [] };
 
     const filteredPapers = papers?.filter(paper => 
-        paper.name.toLowerCase().includes(lowercasedFilter) ||
-        paper.description.toLowerCase().includes(lowercasedFilter)
+        paper.name.toLowerCase().includes(lowercasedFilter)
     ) || [];
 
     const filteredCombos = recentCombos?.filter(combo => 
@@ -214,7 +226,7 @@ export default function HomePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {(filteredItems.papers || []).map((paper, index) => (
                       <div key={paper.id} className={cn({ 'md:col-span-2': filteredItems.papers.length % 2 !== 0 && index === filteredItems.papers.length - 1 })}>
-                           <PaperItem paper={paper} />
+                           <PaperItem paper={paper} index={index} />
                       </div>
                   ))}
               </div>

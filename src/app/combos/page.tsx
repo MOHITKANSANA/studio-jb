@@ -13,10 +13,12 @@ import { cn } from "@/lib/utils";
 import type { Combo } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import PaymentDialog from "@/components/payment-dialog";
+import Image from "next/image";
 
 function ComboItem({ combo, index }: { combo: Combo; index: number }) {
-    const { toast } = useToast();
     const router = useRouter();
+    const [dialogOpen, setDialogOpen] = useState(false);
     const isPaid = combo.accessType === 'Paid';
 
     const comboGradients = [
@@ -24,51 +26,60 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
         'from-yellow-400 to-amber-500',
         'from-green-400 to-teal-500',
         'from-pink-400 to-rose-500',
-        'from-sky-400 to-cyan-500',
-        'from-violet-400 to-purple-500',
     ];
     const gradientClass = comboGradients[index % comboGradients.length];
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
-        if (isPaid) {
-            toast({
-                variant: "destructive",
-                title: `"${combo.name}" एक पेड कॉम्बो है`,
-                description: `कीमत: ₹${combo.price || 0}. खरीदने के लिए आगे बढ़ें।`,
-            });
-            // Future: router.push(`/payment?comboId=${combo.id}`);
+         if (isPaid) {
+            setDialogOpen(true);
         } else {
-            toast({
-                title: "कॉम्बो खोला जा रहा है",
-                description: "आप जल्द ही इस कॉम्बो के सभी PDFs को एक्सेस कर पाएंगे।",
-            });
-            // Future: redirect to a combo detail page
+            router.push(`/combos/${combo.id}`);
         }
     };
 
     return (
+        <>
         <a href="#" onClick={handleClick} className="block group">
-            <Card className={cn("text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform group-hover:scale-105", gradientClass)}>
-                <CardHeader>
+            <Card className="text-white border-0 shadow-lg hover:shadow-2xl transition-all duration-300 transform group-hover:scale-105 aspect-square flex flex-col justify-between p-4 overflow-hidden relative">
+                 {combo.imageUrl ? (
+                    <Image src={combo.imageUrl} alt={combo.name} fill={true} objectFit="cover" className="opacity-80 group-hover:opacity-100 transition-opacity" />
+                 ) : (
+                    <div className={cn("absolute inset-0", gradientClass)} />
+                 )}
+                 <div className="absolute inset-0 bg-black/40"></div>
+
+                <CardHeader className="p-0 z-10">
                     <div className="flex justify-between items-start">
-                        <CardTitle className="text-lg font-bold flex items-center gap-2"><Cloud className="w-6 h-6"/>{combo.name}</CardTitle>
+                        <CardTitle className="text-base font-bold flex items-center gap-2"><Cloud className="w-5 h-5"/>{combo.name}</CardTitle>
                         {isPaid 
-                            ? <Lock className="h-5 w-5 text-white/80" />
-                            : <Unlock className="h-5 w-5 text-white/80" />
+                            ? <Lock className="h-4 w-4 text-white/80" />
+                            : <Unlock className="h-4 w-4 text-white/80" />
                         }
                     </div>
-                    <CardDescription className="text-white/80 text-xs pt-2">{combo.description}</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    {isPaid && (
-                        <div className="text-xl font-bold">
+                <CardContent className="p-0 z-10 flex flex-col justify-end h-full">
+                     {!combo.imageUrl && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <h2 className="text-lg font-bold text-white/50 text-center px-2">MPPSC Mains & Civil Service Notes</h2>
+                        </div>
+                    )}
+                    <CardDescription className="text-white/80 text-xs line-clamp-2">{combo.description}</CardDescription>
+                     {isPaid && (
+                        <div className="text-xl font-bold mt-2">
                             ₹{combo.price}
                         </div>
                     )}
                 </CardContent>
             </Card>
         </a>
+        <PaymentDialog 
+            isOpen={dialogOpen} 
+            setIsOpen={setDialogOpen} 
+            item={combo}
+            itemType="combo"
+        />
+        </>
     );
 }
 
@@ -114,7 +125,7 @@ export default function AllCombosPage() {
            )}
 
           {filteredCombos && filteredCombos.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {filteredCombos.map((combo, index) => (
                     <ComboItem key={combo.id} combo={combo} index={index} />
                 ))}
@@ -125,5 +136,3 @@ export default function AllCombosPage() {
     </AppLayout>
   );
 }
-
-    
