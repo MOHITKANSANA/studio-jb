@@ -66,6 +66,9 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
                 // and grant access to the content.
                 setIsProcessingPayment(false);
                 setIsOpen(false);
+                 if (itemType === 'combo') {
+                    router.push(`/combos/${item.id}`);
+                }
             },
             prefill: {
                 name: user?.displayName || 'Student',

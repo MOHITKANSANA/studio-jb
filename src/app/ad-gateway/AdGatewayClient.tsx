@@ -17,7 +17,6 @@ const AdGatewayPageContent = () => {
 
     useEffect(() => {
         if (!pdfUrl) {
-            // This component doesn't handle routing, just displays state.
             return;
         }
 
@@ -37,7 +36,6 @@ const AdGatewayPageContent = () => {
 
     const handleProceedToPdf = () => {
         if (pdfUrl) {
-            // Redirect and go back
             window.open(pdfUrl, '_blank', 'noopener,noreferrer');
             window.history.back();
         }
@@ -93,9 +91,7 @@ const AdGatewayPageContent = () => {
     );
 }
 
-// This is the actual client boundary component.
 export default function AdGatewayClient() {
-    // React's Suspense can be used to wait for searchParams
     return (
         <React.Suspense fallback={<div>Loading...</div>}>
             <AdGatewayPageContent />
