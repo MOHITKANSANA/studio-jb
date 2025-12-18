@@ -17,9 +17,8 @@ import type { Combo, PdfDocument } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import { LoaderCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import { useRazorpay } from '@/hooks/use-razorpay';
 
-
-declare const Razorpay: any;
 
 interface PaymentDialogProps {
   isOpen: boolean;
@@ -32,7 +31,8 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
   const { toast } = useToast();
   const router = useRouter();
   const { user } = useUser();
-  const [isLoading, setIsLoading] = React.useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = React.useState(false);
+  const isRazorpayLoaded = useRazorpay();
 
   const isFree = item.accessType === 'Free' || !item.price || item.price <= 0;
 
@@ -46,8 +46,8 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
   };
 
   const handlePayment = async () => {
-    if (!item.price) return;
-    setIsLoading(true);
+    if (!item.price || !isRazorpayLoaded) return;
+    setIsProcessingPayment(true);
 
     try {
         const options = {
@@ -64,7 +64,7 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
                 });
                 // Here you would typically verify the payment on your backend
                 // and grant access to the content.
-                setIsLoading(false);
+                setIsProcessingPayment(false);
                 setIsOpen(false);
             },
             prefill: {
@@ -80,16 +80,21 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
             theme: {
                 color: '#6366f1',
             },
+            modal: {
+                ondismiss: function() {
+                    setIsProcessingPayment(false);
+                }
+            }
         };
 
-        const rzp = new Razorpay(options);
+        const rzp = new (window as any).Razorpay(options);
         rzp.on('payment.failed', function (response: any) {
              toast({
                 variant: 'destructive',
                 title: 'Payment Failed',
                 description: response.error.description,
             });
-            setIsLoading(false);
+            setIsProcessingPayment(false);
         });
 
         rzp.open();
@@ -101,7 +106,7 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
             title: 'An error occurred',
             description: 'Could not initiate payment. Please try again.',
         });
-        setIsLoading(false);
+        setIsProcessingPayment(false);
     }
   };
 
@@ -132,8 +137,8 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
               एक्सेस करें
             </Button>
           ) : (
-            <Button onClick={handlePayment} disabled={isLoading}>
-              {isLoading ? <LoaderCircle className="animate-spin" /> : `₹${item.price} में खरीदें`}
+            <Button onClick={handlePayment} disabled={isProcessingPayment || !isRazorpayLoaded}>
+              {isProcessingPayment || !isRazorpayLoaded ? <LoaderCircle className="animate-spin" /> : `₹${item.price} में खरीदें`}
             </Button>
           )}
         </DialogFooter>
