@@ -1,15 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { PlayCircle, Shield, Hourglass, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 const AD_COUNTDOWN_SECONDS = 5;
 
-export default function AdGatewayClient() {
-    const router = useRouter();
+const AdGatewayPageContent = () => {
     const searchParams = useSearchParams();
     const pdfUrl = searchParams.get('url');
 
@@ -18,8 +17,7 @@ export default function AdGatewayClient() {
 
     useEffect(() => {
         if (!pdfUrl) {
-            // If no URL is provided, redirect back to home after a short delay
-            setTimeout(() => router.push('/home'), 2000);
+            // This component doesn't handle routing, just displays state.
             return;
         }
 
@@ -35,12 +33,13 @@ export default function AdGatewayClient() {
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [pdfUrl, router]);
+    }, [pdfUrl]);
 
     const handleProceedToPdf = () => {
         if (pdfUrl) {
+            // Redirect and go back
             window.open(pdfUrl, '_blank', 'noopener,noreferrer');
-            router.back(); // Go back to the previous page in history
+            window.history.back();
         }
     };
     
@@ -49,7 +48,7 @@ export default function AdGatewayClient() {
             <div className="flex h-screen flex-col items-center justify-center bg-background p-4 text-center">
                 <Shield className="w-16 h-16 text-red-500 mb-4" />
                 <h1 className="text-2xl font-bold">अमान्य लिंक</h1>
-                <p className="text-muted-foreground">PDF का लिंक नहीं मिला। आपको होमपेज पर वापस भेजा जा रहा है।</p>
+                <p className="text-muted-foreground">PDF का लिंक नहीं मिला। कृपया वापस जाएं।</p>
             </div>
         );
     }
@@ -91,5 +90,15 @@ export default function AdGatewayClient() {
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+// This is the actual client boundary component.
+export default function AdGatewayClient() {
+    // React's Suspense can be used to wait for searchParams
+    return (
+        <React.Suspense fallback={<div>Loading...</div>}>
+            <AdGatewayPageContent />
+        </React.Suspense>
     );
 }
