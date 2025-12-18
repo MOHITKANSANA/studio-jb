@@ -35,6 +35,7 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
   const isRazorpayLoaded = useRazorpay();
 
   const isFree = item.accessType === 'Free' || !item.price || item.price <= 0;
+  const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
 
   const handleFreeAccess = () => {
     setIsOpen(false);
@@ -47,11 +48,21 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
 
   const handlePayment = async () => {
     if (!item.price || !isRazorpayLoaded) return;
+    
+    if (!razorpayKey) {
+        toast({
+            variant: 'destructive',
+            title: 'Configuration Error',
+            description: 'Razorpay Key ID is not configured. Please contact support.',
+        });
+        return;
+    }
+
     setIsProcessingPayment(true);
 
     try {
         const options = {
-            key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID!,
+            key: razorpayKey,
             amount: item.price * 100, // amount in the smallest currency unit
             currency: "INR",
             name: 'MPPSC & Civil Notes',
@@ -68,7 +79,9 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
                 setIsOpen(false);
                  if (itemType === 'combo') {
                     router.push(`/combos/${item.id}`);
-                }
+                 } else {
+                    router.push(`/ad-gateway?url=${encodeURIComponent((item as PdfDocument).googleDriveLink)}`);
+                 }
             },
             prefill: {
                 name: user?.displayName || 'Student',
@@ -140,8 +153,8 @@ export default function PaymentDialog({ isOpen, setIsOpen, item, itemType }: Pay
               एक्सेस करें
             </Button>
           ) : (
-            <Button onClick={handlePayment} disabled={isProcessingPayment || !isRazorpayLoaded}>
-              {isProcessingPayment || !isRazorpayLoaded ? <LoaderCircle className="animate-spin" /> : `₹${item.price} में खरीदें`}
+            <Button onClick={handlePayment} disabled={isProcessingPayment || !isRazorpayLoaded || !razorpayKey}>
+              {isProcessingPayment || !isRazorpayLoaded ? <LoaderCircle className="animate-spin" /> : !razorpayKey ? 'Not Configured' : `₹${item.price} में खरीदें`}
             </Button>
           )}
         </DialogFooter>
