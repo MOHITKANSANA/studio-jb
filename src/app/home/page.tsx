@@ -4,7 +4,7 @@
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock, Unlock, Search as SearchIcon, LoaderCircle, Cloud, ChevronRight } from "lucide-react";
+import { Search as SearchIcon, LoaderCircle, Cloud, ChevronRight } from "lucide-react";
 import { collection, query, orderBy, limit } from "firebase/firestore";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { AppLayout } from "@/components/app-layout";
@@ -13,11 +13,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 import type { Paper, Combo, Tab } from "@/lib/types";
-import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
-import PaymentDialog from "@/components/payment-dialog";
-
 
 const topicGradients = [
   'from-blue-500 to-indigo-600',
@@ -104,9 +101,7 @@ function PaperItem({ paper, index }: { paper: Paper; index: number }) {
 }
 
 function ComboItem({ combo, index }: { combo: Combo; index: number }) {
-    const [dialogOpen, setDialogOpen] = useState(false);
     const router = useRouter();
-    const isPaid = combo.accessType === 'Paid';
 
     const comboGradients = [
         'from-blue-400 to-indigo-500',
@@ -118,15 +113,10 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
-        if (isPaid) {
-            setDialogOpen(true);
-        } else {
-            router.push(`/combos/${combo.id}`);
-        }
+        router.push(`/combos/${combo.id}`);
     };
 
     return (
-        <>
         <a href="#" onClick={handleClick} className="block group">
             <Card className="text-white border-0 shadow-lg hover:shadow-2xl transition-all duration-300 transform group-hover:scale-105 aspect-square flex flex-col justify-between p-4 overflow-hidden relative">
                  {combo.imageUrl ? (
@@ -139,10 +129,6 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
                 <CardHeader className="p-0 z-10">
                     <div className="flex justify-between items-start">
                         <CardTitle className="text-base font-bold flex items-center gap-2"><Cloud className="w-5 h-5"/>{combo.name}</CardTitle>
-                        {isPaid 
-                            ? <Lock className="h-4 w-4 text-white/80" />
-                            : <Unlock className="h-4 w-4 text-white/80" />
-                        }
                     </div>
                 </CardHeader>
                 <CardContent className="p-0 z-10 flex flex-col justify-end h-full">
@@ -150,13 +136,6 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
                 </CardContent>
             </Card>
         </a>
-        <PaymentDialog 
-            isOpen={dialogOpen} 
-            setIsOpen={setDialogOpen} 
-            item={combo}
-            itemType="combo"
-        />
-        </>
     );
 }
 

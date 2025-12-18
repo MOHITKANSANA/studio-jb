@@ -5,11 +5,10 @@ import { useRouter, useParams } from 'next/navigation';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { AppLayout } from '@/components/app-layout';
-import { LoaderCircle, Folder, Home, ChevronLeft, Lock, Unlock, FileText } from 'lucide-react';
+import { LoaderCircle, Folder, Home, ChevronLeft, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { SubFolder, PdfDocument } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import PaymentDialog from '@/components/payment-dialog';
 
 const pdfGradients = [
     'dark:from-sky-900/70 dark:to-blue-900/70',
@@ -22,29 +21,18 @@ const pdfGradients = [
 
 function PdfItem({ pdf, index }: { pdf: PdfDocument; index: number }) {
     const router = useRouter();
-    const isPaid = pdf.accessType === 'Paid';
-    const [dialogOpen, setDialogOpen] = useState(false);
-    
     const gradientClass = `bg-gradient-to-r ${pdfGradients[index % pdfGradients.length]}`;
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
-        if (isPaid) {
-            setDialogOpen(true);
-        } else {
-            router.push(`/ad-gateway?url=${encodeURIComponent(pdf.googleDriveLink)}`);
-        }
+        router.push(`/ad-gateway?url=${encodeURIComponent(pdf.googleDriveLink)}`);
     }
 
     return (
-        <>
         <a href="#" onClick={handleClick} className="block">
           <div className={cn("flex items-center p-3 rounded-lg hover:shadow-md transition-all duration-200", gradientClass)}>
-            <div className={cn("p-2 rounded-md mr-4", isPaid ? 'bg-amber-500/20' : 'bg-green-500/20')}>
-              {isPaid 
-                ? <Lock className="h-5 w-5 text-amber-500 dark:text-amber-400" />
-                : <Unlock className="h-5 w-5 text-green-600 dark:text-green-400" />
-              }
+            <div className={cn("p-2 rounded-md mr-4", 'bg-green-500/20')}>
+                <FileText className="h-5 w-5 text-green-600 dark:text-green-400" />
             </div>
             <div className="flex-1">
               <p className="font-semibold text-foreground text-sm">{pdf.name}</p>
@@ -52,13 +40,6 @@ function PdfItem({ pdf, index }: { pdf: PdfDocument; index: number }) {
             </div>
           </div>
         </a>
-        <PaymentDialog 
-            isOpen={dialogOpen} 
-            setIsOpen={setDialogOpen} 
-            item={pdf}
-            itemType="pdf"
-        />
-        </>
     )
 }
 

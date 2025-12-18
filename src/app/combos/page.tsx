@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Unlock, Search as SearchIcon, LoaderCircle, Cloud } from "lucide-react";
+import { Search as SearchIcon, LoaderCircle, Cloud } from "lucide-react";
 import { collection, query, orderBy } from "firebase/firestore";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { AppLayout } from "@/components/app-layout";
@@ -11,15 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { Combo } from "@/lib/types";
-import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import PaymentDialog from "@/components/payment-dialog";
 import Image from "next/image";
 
 function ComboItem({ combo, index }: { combo: Combo; index: number }) {
     const router = useRouter();
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const isPaid = combo.accessType === 'Paid';
 
     const comboGradients = [
         'from-blue-400 to-indigo-500',
@@ -31,11 +26,7 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
 
     const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
-         if (isPaid) {
-            setDialogOpen(true);
-        } else {
-            router.push(`/combos/${combo.id}`);
-        }
+        router.push(`/combos/${combo.id}`);
     };
 
     return (
@@ -52,28 +43,13 @@ function ComboItem({ combo, index }: { combo: Combo; index: number }) {
                 <CardHeader className="p-0 z-10">
                     <div className="flex justify-between items-start">
                         <CardTitle className="text-base font-bold flex items-center gap-2"><Cloud className="w-5 h-5"/>{combo.name}</CardTitle>
-                        {isPaid 
-                            ? <Lock className="h-4 w-4 text-white/80" />
-                            : <Unlock className="h-4 w-4 text-white/80" />
-                        }
                     </div>
                 </CardHeader>
                 <CardContent className="p-0 z-10 flex flex-col justify-end h-full">
                     <CardDescription className="text-white/80 text-xs line-clamp-2">{combo.description}</CardDescription>
-                     {isPaid && (
-                        <div className="text-xl font-bold mt-2">
-                            ₹{combo.price}
-                        </div>
-                    )}
                 </CardContent>
             </Card>
         </a>
-        <PaymentDialog 
-            isOpen={dialogOpen} 
-            setIsOpen={setDialogOpen} 
-            item={combo}
-            itemType="combo"
-        />
         </>
     );
 }
