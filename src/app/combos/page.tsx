@@ -1,8 +1,6 @@
 
 "use client";
 
-import React, "use client";
-
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Unlock, Search as SearchIcon, LoaderCircle, Cloud } from "lucide-react";
